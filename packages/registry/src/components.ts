@@ -92,6 +92,38 @@ export const vsourceDc: Component = {
   provenance: PROVENANCE,
 };
 
+/**
+ * SPICE PULSE source (issue #17). Defaults give a 0→5V, ~1kHz square wave
+ * (400us on / 1ms period, 1us edges) — enough to show dynamic RC behaviour
+ * in a transient run without any parameter overrides.
+ */
+export const vsourcePulse: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_vsource_pulse",
+  name: "Pulse Voltage Source",
+  category: "power",
+  pins: [
+    { id: "pos", name: "+", electricalType: "passive" },
+    { id: "neg", name: "-", electricalType: "passive" },
+  ],
+  parameters: [
+    { name: "vlow", unit: "volt", default: 0, type: "number" },
+    { name: "vhigh", unit: "volt", default: 5, type: "number" },
+    { name: "tdelay", unit: "second", default: 0, type: "number" },
+    { name: "trise", unit: "second", default: 1e-6, type: "number" },
+    { name: "tfall", unit: "second", default: 1e-6, type: "number" },
+    { name: "ton", unit: "second", default: 4e-4, type: "number" },
+    { name: "tperiod", unit: "second", default: 1e-3, type: "number" },
+  ],
+  simModel: {
+    engine: "ngspice",
+    template:
+      "V{ref} {pos} {neg} PULSE({vlow} {vhigh} {tdelay} {trise} {tfall} {ton} {tperiod})",
+  },
+  provenance: PROVENANCE,
+};
+
 /** Names the ground net only — no simModel; SPICE node 0 comes from the compiler. */
 export const ground: Component = {
   irVersion: IR_VERSION,

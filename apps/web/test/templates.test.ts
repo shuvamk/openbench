@@ -36,7 +36,8 @@ describe("createFromTemplate", () => {
       const byId = new Map(
         bundle.schematic.instances.map((i) => [i.instanceId, i]),
       );
-      expect(byId.get("V1")?.componentId).toBe("cmp_vsource_dc");
+      expect(byId.get("V1")?.componentId).toBe("cmp_vsource_pulse");
+      expect(byId.get("V1")?.parameterOverrides).toBeUndefined();
       expect(byId.get("R1")?.componentId).toBe("cmp_resistor_generic");
       expect(byId.get("R1")?.parameterOverrides?.resistance).toBe(4700);
       expect(byId.get("C1")?.componentId).toBe("cmp_capacitor_generic");
@@ -79,7 +80,7 @@ describe("createFromTemplate", () => {
       const cards = result.netlist.elements.map((e) => e.spiceCard);
       expect(cards.some((c) => c.startsWith("RR1 ") && c.includes("4700"))).toBe(true);
       expect(cards.some((c) => c.startsWith("CC1 "))).toBe(true);
-      expect(cards.some((c) => c.startsWith("VV1 ") && c.includes("DC"))).toBe(true);
+      expect(cards.some((c) => c.startsWith("VV1 ") && c.includes("PULSE("))).toBe(true);
       // the ground net maps to SPICE node 0
       expect(result.netlist.nodes.some((n) => n.spiceNode === "0")).toBe(true);
     });

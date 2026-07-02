@@ -141,7 +141,7 @@ describe("ensureSeeded", () => {
       "cmp_capacitor_generic",
       "cmp_ground",
       "cmp_resistor_generic",
-      "cmp_vsource_dc",
+      "cmp_vsource_pulse",
     ]);
     // alias also resolves
     expect(await store.load("demo")).toEqual(demo);

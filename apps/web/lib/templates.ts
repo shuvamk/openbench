@@ -24,12 +24,14 @@ type SchematicContent = Pick<Schematic, "instances" | "nets"> & {
 const blankContent = (): SchematicContent => ({ instances: [], nets: [] });
 
 /**
- * RC low-pass: V1 (5V DC) → R1 (4.7kΩ) → C1 (100nF) → GND.
+ * RC low-pass: V1 (0→5V ~1kHz pulse) → R1 (4.7kΩ) → C1 (100nF) → GND.
  * vin = V1.pos/R1.p1, vout = R1.p2/C1.p1, gnd = C1.p2/V1.neg/GND1.
+ * The pulse source defaults (400us on / 1ms period) drive the ~470us RC
+ * time constant, so a transient run shows exponential charging on VOUT.
  */
 const rcLowpassContent = (): SchematicContent => ({
   instances: [
-    { instanceId: "V1", componentId: "cmp_vsource_dc" },
+    { instanceId: "V1", componentId: "cmp_vsource_pulse" },
     {
       instanceId: "R1",
       componentId: "cmp_resistor_generic",

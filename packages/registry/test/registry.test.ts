@@ -13,6 +13,7 @@ const EXPECTED_IDS = [
   "cmp_capacitor_generic",
   "cmp_led_generic",
   "cmp_vsource_dc",
+  "cmp_vsource_pulse",
   "cmp_ground",
   "cmp_esp32_devkit",
 ];
@@ -127,6 +128,25 @@ describe("curated parts", () => {
       { name: "voltage", unit: "volt", default: 5, type: "number" },
     ]);
     expect(vsource.simModel?.template).toBe("V{ref} {pos} {neg} DC {voltage}");
+  });
+
+  it("cmp_vsource_pulse has pos/neg pins, PULSE timing parameters and a PULSE template", () => {
+    const vsource = byId("cmp_vsource_pulse");
+    expect(vsource.category).toBe("power");
+    expect(vsource.pins.map((p) => p.id)).toEqual(["pos", "neg"]);
+    expect(vsource.parameters).toEqual([
+      { name: "vlow", unit: "volt", default: 0, type: "number" },
+      { name: "vhigh", unit: "volt", default: 5, type: "number" },
+      { name: "tdelay", unit: "second", default: 0, type: "number" },
+      { name: "trise", unit: "second", default: 1e-6, type: "number" },
+      { name: "tfall", unit: "second", default: 1e-6, type: "number" },
+      { name: "ton", unit: "second", default: 4e-4, type: "number" },
+      { name: "tperiod", unit: "second", default: 1e-3, type: "number" },
+    ]);
+    expect(vsource.simModel?.template).toBe(
+      "V{ref} {pos} {neg} PULSE({vlow} {vhigh} {tdelay} {trise} {tfall} {ton} {tperiod})",
+    );
+    expect(vsource.footprint).toBeUndefined();
   });
 
   it("cmp_ground is a single power_in pin with no simModel", () => {

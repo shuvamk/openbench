@@ -1,7 +1,7 @@
 /**
  * @openbench/registry — curated OpenBench component library (Phase 1).
  *
- * Exposes the six curated parts as validated Component IR documents plus an
+ * Exposes the seven curated parts as validated Component IR documents plus an
  * id lookup. The registry is the single source for `componentId` references
  * in schematics; every entry passes `validateComponent` from
  * @openbench/ir-schema (enforced by this package's tests).
@@ -14,6 +14,7 @@ import {
   ledGeneric,
   resistorGeneric,
   vsourceDc,
+  vsourcePulse,
 } from "./components";
 
 export const registryComponents: Component[] = [
@@ -21,6 +22,7 @@ export const registryComponents: Component[] = [
   capacitorGeneric,
   ledGeneric,
   vsourceDc,
+  vsourcePulse,
   ground,
   esp32Devkit,
 ];
