@@ -5,6 +5,15 @@
   "license": "Apache-2.0",
   "type": "module",
   "main": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@openbench/ir-schema": "*" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@openbench/ir-schema": "*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.24.0"
+  },
+  "bin": {
+    "openbench-mcp-firmware-platformio": "./src/server-cli.mjs"
+  }
 }
