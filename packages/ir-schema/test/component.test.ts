@@ -53,7 +53,7 @@ describe("validateComponent", () => {
 
   it("rejects duplicate pin ids", () => {
     const doc = clone();
-    (doc.pins as Array<{ id: string }>)[1].id = "p1";
+    (doc.pins as Array<{ id: string }>)[1]!.id = "p1";
     const result = validateComponent(doc);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.message.includes("duplicate pin id"))).toBe(true);
@@ -73,6 +73,22 @@ describe("validateComponent", () => {
     const result = validateComponent(doc);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.message.includes("capacitance"))).toBe(true);
+  });
+
+  it("accepts an optional simModel.modelCard SPICE .model line (issue #5 additive field)", () => {
+    const doc = clone();
+    (doc.simModel as Record<string, unknown>).modelCard = ".model DLED D(IS=1e-14)";
+    const result = validateComponent(doc);
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects a non-string simModel.modelCard", () => {
+    const doc = clone();
+    (doc.simModel as Record<string, unknown>).modelCard = 42;
+    const result = validateComponent(doc);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path === "simModel.modelCard")).toBe(true);
   });
 
   it("rejects a component id not matching cmp_*", () => {

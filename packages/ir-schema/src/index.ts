@@ -2,11 +2,12 @@
  * @openbench/ir-schema — the canonical OpenBench Interchange Format.
  *
  * Executable twin of .context/interchange-format.md. The spec doc and these
- * schemas must never drift (spec-sync test). Currently implemented kinds:
- * `component`. Remaining kinds land via Phase 1 issues.
+ * schemas must never drift (spec-sync test). All six kinds are implemented:
+ * component, schematic, netlist, simulationRun, firmwareTarget, project.
  */
 export { IR_VERSION, isSupportedIrVersion } from "./version";
 export type { ValidationError, ValidationResult } from "./validate";
+export { provenanceSchema, type Provenance } from "./provenance";
 export {
   componentSchema,
   validateComponent,
@@ -14,3 +15,31 @@ export {
   type ComponentParameter,
   type Pin,
 } from "./component";
+export {
+  schematicSchema,
+  validateSchematic,
+  type Schematic,
+  type SchematicInstance,
+  type Net,
+  type NetConnection,
+} from "./schematic";
+export {
+  netlistSchema,
+  validateNetlist,
+  type Netlist,
+  type NetlistNode,
+  type NetlistElement,
+} from "./netlist";
+export {
+  simulationRunSchema,
+  validateSimulationRun,
+  type SimulationRun,
+  type WaveformSignal,
+} from "./simulation-run";
+export {
+  firmwareTargetSchema,
+  validateFirmwareTarget,
+  type FirmwareTarget,
+} from "./firmware-target";
+export { projectSchema, validateProject, type Project } from "./project";
+export { irDocumentSchema, validateDocument, type IrDocument } from "./document";

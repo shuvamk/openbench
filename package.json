@@ -2,7 +2,7 @@
   "name": "openbench",
   "version": "0.1.0",
   "private": true,
-  "description": "The open workbench for electronics — schematic → simulation → firmware, in the browser, orchestrating open engines behind one interchange format.",
+  "description": "The open workbench for electronics \u2014 schematic \u2192 simulation \u2192 firmware, in the browser, orchestrating open engines behind one interchange format.",
   "license": "Apache-2.0",
   "workspaces": [
     "apps/*",
@@ -16,7 +16,10 @@
   },
   "devDependencies": {
     "typescript": "^5.6.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "jsdom": "^25.0.0",
+    "@testing-library/react": "^16.1.0",
+    "fake-indexeddb": "^6.0.0"
   },
   "engines": {
     "node": ">=20"

@@ -46,6 +46,8 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
   "simModel": {
     "engine": "ngspice",
     "template": "R{ref} {p1} {p2} {resistance}"
+    // optional: "modelCard": ".model DLED D(IS=1e-14)" — SPICE .model line for
+    // components whose template references a named model (additive, Phase 1)
   },
   "footprint": { "kicadRef": "Resistor_SMD:R_0603_1608Metric" },
   "provenance": { "source": "registry", "addedBy": "registry-curator", "at": "<iso8601>" }
@@ -67,6 +69,13 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
       "connections": [ { "instanceId": "R1", "pinId": "p1" },
                         { "instanceId": "U1", "pinId": "3V3" } ] }
   ],
+  // optional editor geometry (additive, Phase 1); keys must be declared instanceIds
+  "layout": {
+    "instances": {
+      "R1": { "x": 120, "y": 80, "rotation": 0 },   // rotation: 0 | 90 | 180 | 270
+      "U1": { "x": 320, "y": 160 }
+    }
+  },
   "provenance": { "source": "kicad-adapter", "at": "<iso8601>" }
 }
 
@@ -162,3 +171,16 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
   (issue #1, Phase 0 exit criteria). No shape changes vs this spec. Notes:
   component ids validated against `^cmp_[a-z0-9_]+$`; `simModel.template`
   tokens checked against `ref` + declared pin ids + parameter names.
+- **2026-07-02** — remaining five kinds (`schematic`, `netlist`,
+  `simulationRun`, `firmwareTarget`, `project`) implemented in
+  `packages/ir-schema` (issue #5), plus `irDocumentSchema` (discriminated
+  union on `kind`) and `validateDocument`. Two ADDITIVE, patch-level fields
+  (no `irVersion` bump; ir-schema-guard: optional additions are
+  non-breaking): `component.simModel.modelCard?: string` — a SPICE `.model`
+  line; `schematic.layout?: { instances: Record<instanceId, { x, y,
+  rotation?: 0|90|180|270 }> }` — editor geometry, keys must be declared
+  instanceIds. Validation notes: sch_/net_/sim_/fw_/proj_ ids match
+  `^<prefix>_[a-z0-9_-]+$`; schematic rejects duplicate instanceIds,
+  duplicate netIds, and connections/layout keys referencing undeclared
+  instanceIds; `simulationRun.results.signals[].samples` must be a URL or
+  `data:` URI; `netlist.derivedBy` is required.
