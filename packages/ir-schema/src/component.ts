@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { isSupportedIrVersion, IR_VERSION } from "./version.js";
-import { runSchema, type ValidationResult } from "./validate.js";
+import { isSupportedIrVersion, IR_VERSION } from "./version";
+import { runSchema, type ValidationResult } from "./validate";
 
 /** KiCad-aligned pin electrical types (glossary: "Pin"). */
 export const electricalTypes = [

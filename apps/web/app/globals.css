@@ -1,0 +1,21 @@
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/theme-neutral/theme.css';
+
+:root {
+  /* Canvas surface tokens derive from Astryx theme variables so dark mode
+     and re-theming propagate into the schematic editor for free. */
+  --ob-canvas-bg: var(--xds-color-surface-secondary, #fafafa);
+  --ob-canvas-grid: color-mix(in srgb, var(--xds-color-border-primary, #d4d4d4) 45%, transparent);
+  --ob-wire: var(--xds-color-text-primary, #171717);
+  --ob-wire-hover: var(--xds-color-text-link, #2563eb);
+  --ob-net-highlight: var(--xds-color-text-link, #2563eb);
+  --ob-symbol-body: var(--xds-color-surface-primary, #ffffff);
+  --ob-symbol-stroke: var(--xds-color-text-primary, #171717);
+  --ob-pin: var(--xds-color-text-secondary, #525252);
+  --ob-selection: color-mix(in srgb, var(--xds-color-text-link, #2563eb) 18%, transparent);
+}
+
+html, body {
+  height: 100%;
+}

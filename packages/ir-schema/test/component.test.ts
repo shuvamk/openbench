@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateComponent } from "../src/index.js";
+import { validateComponent } from "../src/index";
 
 /**
  * Acceptance tests for issue #1 — the `component` IR kind.

@@ -5,12 +5,12 @@
  * schemas must never drift (spec-sync test). Currently implemented kinds:
  * `component`. Remaining kinds land via Phase 1 issues.
  */
-export { IR_VERSION, isSupportedIrVersion } from "./version.js";
-export type { ValidationError, ValidationResult } from "./validate.js";
+export { IR_VERSION, isSupportedIrVersion } from "./version";
+export type { ValidationError, ValidationResult } from "./validate";
 export {
   componentSchema,
   validateComponent,
   type Component,
   type ComponentParameter,
   type Pin,
-} from "./component.js";
+} from "./component";
