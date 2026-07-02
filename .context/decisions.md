@@ -141,3 +141,21 @@ keeps `renode` in the enum so non-Xtensa MCU families (e.g. STM32 in Phase 2+) c
 Renode where it is strongest.
 **Consequences:** End-to-end flash-to-emulator execution is the next mcp-firmware
 milestone; requires the Espressif QEMU binary locally (never on Vercel).
+
+## ADR-0012 — Required status checks removed while Actions is billing-locked (2026-07-02)
+
+**Decision:** Per the repo owner's explicit directive ("Remove the CI — might not be
+so important… merge everything to main"), branch protection on `main` no longer
+requires the `test`/`reviewer-agent`/`context-freshness` status contexts. The PR stack
+(#2 ← #3 ← #4 ← #14) merges after a final LOCAL run of the exact same gates: full
+suite (299 green), reviewer-check (APPROVED, one process.exit warning noted —
+Node-only code paths, web build unaffected), context-freshness (OK; running it
+surfaced and fixed a comment-terminator bug in the script itself).
+**Rationale:** Hosted CI cannot start under the GitHub account billing lock (ADR-0010);
+the human owner chose merge-with-local-gates over waiting. This is a human-authorized
+relaxation, not an autonomous one.
+**Consequences:** The workflows remain in-repo. When account billing is fixed,
+re-enable the required checks with:
+`gh api -X PUT repos/shuvamk/openbench/branches/main/protection` (contexts: test,
+reviewer-agent, context-freshness) — tracked as a `type:infra` issue so it isn't
+forgotten.
