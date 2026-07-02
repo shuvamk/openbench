@@ -1,0 +1,10 @@
+{
+  "name": "@openbench/mcp-kicad",
+  "version": "0.1.0",
+  "description": "KiCad engine adapter: .kicad_sch ↔ schematic IR.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@openbench/ir-schema": "*" }
+}
