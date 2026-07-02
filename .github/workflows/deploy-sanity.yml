@@ -6,6 +6,10 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # Fallback probe: merges performed by the auto-merge bot token do not fire
+    # `push` workflows, so production is also verified on a cron.
+    - cron: "23 */6 * * *"
 jobs:
   deploy-sanity:
     runs-on: ubuntu-latest
