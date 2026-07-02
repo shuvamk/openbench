@@ -7,9 +7,9 @@
  * Architecture-relevant paths (heuristic, tightened over time):
  *   - any package.json (dependency/workspace surface)
  *   - a new or deleted package/app directory
- *   - public API surface: packages/*/src/index.ts
- *   - HTTP surface: apps/web/app/api/**
- *   - pipeline surface: .github/workflows/**, .claude/**
+ *   - public API surface: packages/<pkg>/src/index.ts
+ *   - HTTP surface: apps/web/app/api/ (any file)
+ *   - pipeline surface: .github/workflows/ and .claude/ (any file)
  *
  * Env: BASE_SHA, HEAD_SHA.
  */

@@ -1,0 +1,10 @@
+{
+  "name": "@openbench/netlist-compiler",
+  "version": "0.1.0",
+  "description": "Schematic IR → engine-agnostic netlist IR.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@openbench/ir-schema": "*" }
+}

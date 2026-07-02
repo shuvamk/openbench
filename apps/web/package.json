@@ -1,0 +1,30 @@
+{
+  "name": "@openbench/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "astryx": "node node_modules/@astryxdesign/cli/bin/astryx.mjs"
+  },
+  "dependencies": {
+    "@astryxdesign/core": "^0.1.2",
+    "@astryxdesign/theme-neutral": "^0.1.2",
+    "@openbench/ir-schema": "*",
+    "next": "^16.2.10",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0",
+    "@openbench/registry": "*",
+    "@openbench/netlist-compiler": "*",
+    "@openbench/mcp-sim-ngspice": "*"
+  },
+  "devDependencies": {
+    "@astryxdesign/cli": "^0.1.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.0"
+  }
+}

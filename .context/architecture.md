@@ -64,9 +64,12 @@ Status of each: [engine-status.md](engine-status.md).
 - Design system: Astryx (`@astryxdesign/core`, `@astryxdesign/theme-neutral`). All UI
   built from Astryx components + tokens; editor canvas is bespoke SVG but themed with
   Astryx CSS custom properties.
-- Editor architecture: document store holds IR documents; canvas renders schematic IR;
-  every edit is an IR mutation (no separate canvas model). Simulation panel consumes
-  `simulationRun` IR.
+- Editor architecture: document store (zustand) holds IR documents; canvas renders
+  schematic IR; every edit is a pure IR mutation (`apps/web/lib/editor/mutations.ts` —
+  no separate canvas model), autosaved (debounced) through the `ProjectStore` interface
+  (`apps/web/lib/project-store/`, IndexedDB with memory fallback, ADR-0008). The
+  simulation panel compiles via netlist-compiler + registry resolver and consumes
+  `simulationRun` IR (waveform-v1, inline samples).
 
 ## Persistence
 
@@ -86,10 +89,16 @@ Status of each: [engine-status.md](engine-status.md).
 
 ## Phase status
 
-- **Phase 0 (agentic infrastructure): current.**
-- **Phase 1 (vertical slice):** ESP32-only, KiCad schematic → IR → simulation →
-  PlatformIO firmware to virtual MCU, single-user. No registry service, no multiplayer,
-  no additional MCU families until the slice is production-ready per
+- **Phase 0 (agentic infrastructure): complete** — pipeline proven end to end
+  (issue → red → green → PR → gates), with the caveat that hosted CI is blocked by a
+  GitHub account billing lock (ADR-0010).
+- **Phase 1 (vertical slice): in progress, core landed.** All six IR kinds wired;
+  registry (6 parts), netlist compiler, KiCad adapter (flat sheets), ngspice adapter
+  (transient, WASM+mock), PlatformIO adapter (ini/backends/QEMU stub, ADR-0011);
+  frontend: projects dashboard (IndexedDB ProjectStore, templates, import/export),
+  schematic editor (SVG canvas, palette, inspector, wires→IR nets, autosave), and
+  simulation panel (run → waveforms → console). Remaining: browser verification of the
+  WASM ngspice backend, MCP server wrappers, real pio/QEMU execution paths per
   [engine-status.md](engine-status.md).
 - **Phase 2 (deferred):** multiplayer/CRDT collaboration, community registry service,
   more MCU families, PCB layout.

@@ -1,0 +1,143 @@
+import type { Component, Schematic } from "@openbench/ir-schema";
+import { refPrefix, type Point } from "./mutations";
+
+/**
+ * Symbol geometry shared by the canvas renderer and wire routing. All pin
+ * offsets are in world units relative to the instance origin (the symbol
+ * center), before rotation.
+ */
+
+export type SymbolKind =
+  | "resistor"
+  | "capacitor"
+  | "led"
+  | "vsource"
+  | "ground"
+  | "mcu"
+  | "generic";
+
+export function getSymbolKind(component: Component): SymbolKind {
+  if (component.category === "mcu") return "mcu";
+  switch (refPrefix(component)) {
+    case "R":
+      return "resistor";
+    case "C":
+      return "capacitor";
+    case "D":
+      return "led";
+    case "V":
+      return "vsource";
+    case "GND":
+      return "ground";
+    default:
+      return "generic";
+  }
+}
+
+export interface SymbolGeometry {
+  /** Half-extents of the symbol's bounding box (centered at origin). */
+  halfWidth: number;
+  halfHeight: number;
+  /** Pin offsets relative to the symbol center, pre-rotation. */
+  pins: Record<string, Point>;
+}
+
+function twoPinHorizontal(component: Component, reach: number): Record<string, Point> {
+  const [first, second] = component.pins;
+  const pins: Record<string, Point> = {};
+  if (first) pins[first.id] = { x: -reach, y: 0 };
+  if (second) pins[second.id] = { x: reach, y: 0 };
+  return pins;
+}
+
+const MCU_ROW_SPACING = 20;
+const MCU_HALF_WIDTH = 60;
+
+export function getSymbolGeometry(component: Component): SymbolGeometry {
+  const kind = getSymbolKind(component);
+  switch (kind) {
+    case "resistor":
+      return { halfWidth: 30, halfHeight: 10, pins: twoPinHorizontal(component, 30) };
+    case "capacitor":
+      return { halfWidth: 20, halfHeight: 12, pins: twoPinHorizontal(component, 20) };
+    case "led":
+      return { halfWidth: 20, halfHeight: 14, pins: twoPinHorizontal(component, 20) };
+    case "vsource": {
+      const pins: Record<string, Point> = {};
+      const [pos, neg] = component.pins;
+      if (pos) pins[pos.id] = { x: 0, y: -30 };
+      if (neg) pins[neg.id] = { x: 0, y: 30 };
+      return { halfWidth: 16, halfHeight: 30, pins };
+    }
+    case "ground": {
+      const pins: Record<string, Point> = {};
+      const [gnd] = component.pins;
+      if (gnd) pins[gnd.id] = { x: 0, y: -12 };
+      return { halfWidth: 14, halfHeight: 12, pins };
+    }
+    case "mcu":
+    case "generic": {
+      const pins: Record<string, Point> = {};
+      const perSide = Math.ceil(component.pins.length / 2);
+      const columnHeight = (perSide - 1) * MCU_ROW_SPACING;
+      component.pins.forEach((pin, index) => {
+        const left = index < perSide;
+        const row = left ? index : index - perSide;
+        pins[pin.id] = {
+          x: left ? -MCU_HALF_WIDTH : MCU_HALF_WIDTH,
+          y: row * MCU_ROW_SPACING - columnHeight / 2,
+        };
+      });
+      return {
+        halfWidth: MCU_HALF_WIDTH,
+        halfHeight: columnHeight / 2 + MCU_ROW_SPACING,
+        pins,
+      };
+    }
+  }
+}
+
+export function rotatePoint(point: Point, rotation: 0 | 90 | 180 | 270): Point {
+  switch (rotation) {
+    case 90:
+      return { x: -point.y, y: point.x };
+    case 180:
+      return { x: -point.x, y: -point.y };
+    case 270:
+      return { x: point.y, y: -point.x };
+    default:
+      return point;
+  }
+}
+
+export function getInstancePlacement(
+  schematic: Schematic,
+  instanceId: string,
+): { x: number; y: number; rotation: 0 | 90 | 180 | 270 } {
+  const entry = schematic.layout?.instances[instanceId];
+  return { x: entry?.x ?? 0, y: entry?.y ?? 0, rotation: entry?.rotation ?? 0 };
+}
+
+/** Absolute world position of a pin, honoring layout translation + rotation. */
+export function getPinPosition(
+  schematic: Schematic,
+  component: Component,
+  instanceId: string,
+  pinId: string,
+): Point {
+  const placement = getInstancePlacement(schematic, instanceId);
+  const offset = getSymbolGeometry(component).pins[pinId] ?? { x: 0, y: 0 };
+  const rotated = rotatePoint(offset, placement.rotation);
+  return { x: placement.x + rotated.x, y: placement.y + rotated.y };
+}
+
+/** Orthogonal (H-then-V midpoint) polyline between two points. */
+export function orthogonalPoints(a: Point, b: Point): Point[] {
+  if (a.x === b.x || a.y === b.y) return [a, b];
+  const midX = Math.round((a.x + b.x) / 2);
+  return [a, { x: midX, y: a.y }, { x: midX, y: b.y }, b];
+}
+
+export function toPolylinePoints(points: Point[]): string {
+  return points.map((p) => `${p.x},${p.y}`).join(" ");
+}

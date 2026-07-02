@@ -11,3 +11,4 @@ coverage/
 *.log
 .turbo/
 .claude/.tdd-last-test-touch
+.env*
