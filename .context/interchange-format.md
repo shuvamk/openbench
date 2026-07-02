@@ -155,3 +155,10 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
   + netlist + sim + firmware is the full Phase 1 loop, no PCB yet).
 - Multiplayer/CRDT representation of the schematic (explicitly deferred
   to Phase 2 — do not build early).
+
+## Implementation changelog
+
+- **2026-07-02** — `component` kind implemented in `packages/ir-schema`
+  (issue #1, Phase 0 exit criteria). No shape changes vs this spec. Notes:
+  component ids validated against `^cmp_[a-z0-9_]+$`; `simModel.template`
+  tokens checked against `ref` + declared pin ids + parameter names.
