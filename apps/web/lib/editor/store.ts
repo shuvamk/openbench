@@ -64,6 +64,10 @@ export function __setProjectStoreModuleLoaderForTests(
 export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 4;
 export const AUTOSAVE_DEBOUNCE_MS = 800;
+/** Maximum number of undo snapshots kept (issue #18). */
+export const HISTORY_LIMIT = 100;
+
+type SchematicDoc = ProjectBundle["schematic"];
 
 export function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
@@ -80,6 +84,9 @@ export interface EditorState {
   loadError?: string;
   zoom: number;
   pan: Point;
+  /** Undo/redo stacks of schematic snapshots, newest last / next first. */
+  past: SchematicDoc[];
+  future: SchematicDoc[];
 
   loadProject(projectId: string): Promise<void>;
   place(component: Component, position: Point): void;
@@ -93,6 +100,15 @@ export interface EditorState {
     value: number | string | boolean | undefined,
   ): void;
   renameProject(name: string): void;
+
+  undo(): void;
+  redo(): void;
+  /**
+   * Bracket a continuous pointer gesture (e.g. a drag-move) so every commit
+   * inside it coalesces into a single history entry.
+   */
+  beginGesture(): void;
+  endGesture(): void;
 
   setSelection(ids: string[]): void;
   addToSelection(id: string): void;
@@ -119,6 +135,8 @@ const initialState = {
   loadError: undefined,
   zoom: 1,
   pan: { x: 0, y: 0 },
+  past: [] as SchematicDoc[],
+  future: [] as SchematicDoc[],
 };
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -128,6 +146,23 @@ function clearSaveTimer(): void {
     clearTimeout(saveTimer);
     saveTimer = null;
   }
+}
+
+// Gesture coalescing flags (module-level, like saveTimer, so
+// resetEditorState can clear them between tests / project switches).
+let gestureActive = false;
+let gestureRecorded = false;
+
+function resetGesture(): void {
+  gestureActive = false;
+  gestureRecorded = false;
+}
+
+/** Drop selected ids that do not exist in the (restored) schematic. */
+function sanitizeSelection(selection: string[], schematic: SchematicDoc): string[] {
+  const alive = new Set(schematic.instances.map((instance) => instance.instanceId));
+  const kept = selection.filter((id) => alive.has(id));
+  return kept.length === selection.length ? selection : kept;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => {
@@ -141,9 +176,26 @@ export const useEditorStore = create<EditorState>((set, get) => {
     }, AUTOSAVE_DEBOUNCE_MS);
   }
 
-  function commitSchematic(schematic: ProjectBundle["schematic"]): void {
+  /**
+   * Push the pre-mutation schematic onto the undo stack (bounded, clearing
+   * any redo branch). Commits inside an active gesture record only once, so
+   * a continuous drag-move undoes as a single step.
+   */
+  function recordHistory(previous: SchematicDoc): void {
+    if (gestureActive) {
+      if (gestureRecorded) return;
+      gestureRecorded = true;
+    }
+    const nextPast = [...get().past, previous];
+    if (nextPast.length > HISTORY_LIMIT) nextPast.splice(0, nextPast.length - HISTORY_LIMIT);
+    set({ past: nextPast, future: [] });
+  }
+
+  /** History-aware commit: no-op schematics don't dirty the store or the stack. */
+  function commitSchematic(schematic: SchematicDoc): void {
     const bundle = get().bundle;
-    if (!bundle) return;
+    if (!bundle || schematic === bundle.schematic) return;
+    recordHistory(bundle.schematic);
     commitBundle({ ...bundle, schematic });
   }
 
@@ -151,6 +203,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     ...initialState,
 
     async loadProject(projectId) {
+      resetGesture();
       set({ loading: true, loadError: undefined });
       try {
         const mod = await projectStoreModuleLoader();
@@ -175,7 +228,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       if (!bundle) return;
       const placed = placeInstance(bundle.schematic, component, position);
       set({ selection: [placed.instanceId], tool: "select", placingComponentId: undefined });
-      commitBundle({ ...bundle, schematic: placed.schematic });
+      commitSchematic(placed.schematic);
     },
 
     move(instanceId, position) {
@@ -220,6 +273,41 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const bundle = get().bundle;
       if (!bundle || name.trim().length === 0 || name === bundle.project.name) return;
       commitBundle({ ...bundle, project: { ...bundle.project, name } });
+    },
+
+    undo() {
+      const { bundle, past, future, selection } = get();
+      if (!bundle || past.length === 0) return;
+      const snapshot = past[past.length - 1]!;
+      set({
+        past: past.slice(0, -1),
+        future: [bundle.schematic, ...future].slice(0, HISTORY_LIMIT),
+        selection: sanitizeSelection(selection, snapshot),
+      });
+      commitBundle({ ...bundle, schematic: snapshot });
+    },
+
+    redo() {
+      const { bundle, past, future, selection } = get();
+      if (!bundle || future.length === 0) return;
+      const snapshot = future[0]!;
+      const nextPast = [...past, bundle.schematic];
+      if (nextPast.length > HISTORY_LIMIT) nextPast.splice(0, nextPast.length - HISTORY_LIMIT);
+      set({
+        past: nextPast,
+        future: future.slice(1),
+        selection: sanitizeSelection(selection, snapshot),
+      });
+      commitBundle({ ...bundle, schematic: snapshot });
+    },
+
+    beginGesture() {
+      gestureActive = true;
+      gestureRecorded = false;
+    },
+
+    endGesture() {
+      resetGesture();
     },
 
     setSelection(ids) {
@@ -288,5 +376,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
 /** Reset the singleton store between tests / project switches. */
 export function resetEditorState(): void {
   clearSaveTimer();
+  resetGesture();
   useEditorStore.setState({ ...initialState });
 }

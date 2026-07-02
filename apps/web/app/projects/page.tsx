@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Project } from "@openbench/ir-schema";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { Badge } from "@astryxdesign/core/Badge";
+import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { ClickableCard } from "@astryxdesign/core/ClickableCard";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
@@ -23,6 +24,7 @@ import {
   parseBundle,
   serializeBundle,
 } from "../../lib/project-store";
+import { importKicadToBundle } from "../../lib/kicad/io";
 import { createFromTemplate, duplicateBundle, type TemplateKind } from "../../lib/templates";
 
 const TEMPLATE_OPTIONS = [
@@ -80,6 +82,10 @@ export default function ProjectsPage() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importError, setImportError] = useState<string | undefined>(undefined);
+  // set after a .kicad_sch import that produced warnings: the project is
+  // saved, but the dialog stays open so the user can read what was skipped
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [importedProjectId, setImportedProjectId] = useState<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     const list = await getProjectStore().list();
@@ -165,7 +171,38 @@ export default function ProjectsPage() {
 
   const handleImport = useCallback(async () => {
     if (importFile === null) return;
-    const parsed = parseBundle(await importFile.text());
+    const text = await importFile.text();
+
+    if (importFile.name.toLowerCase().endsWith(".kicad_sch")) {
+      const name = importFile.name.replace(/\.kicad_sch$/i, "") || "Imported schematic";
+      const result = importKicadToBundle(text, name);
+      if (!result.ok) {
+        const first = result.errors[0];
+        setImportError(
+          first === undefined
+            ? "Invalid .kicad_sch file."
+            : `${first.path === "" ? "file" : first.path}: ${first.message}`,
+        );
+        return;
+      }
+      await getProjectStore().save(result.bundle);
+      if (result.warnings.length > 0) {
+        // keep the dialog open so the warnings are readable before opening
+        setImportFile(null);
+        setImportError(undefined);
+        setImportWarnings(result.warnings);
+        setImportedProjectId(result.bundle.project.id);
+        await refresh();
+        return;
+      }
+      setImportFile(null);
+      setImportError(undefined);
+      setIsImportOpen(false);
+      openProject(result.bundle.project.id);
+      return;
+    }
+
+    const parsed = parseBundle(text);
     if (!parsed.ok) {
       const first = parsed.errors[0];
       setImportError(
@@ -180,7 +217,7 @@ export default function ProjectsPage() {
     setImportError(undefined);
     setIsImportOpen(false);
     await refresh();
-  }, [importFile, refresh]);
+  }, [importFile, openProject, refresh]);
 
   return (
     <main style={{ maxWidth: 1080, margin: "0 auto", padding: "0 24px 48px" }}>
@@ -200,6 +237,8 @@ export default function ProjectsPage() {
               onClick={() => {
                 setImportFile(null);
                 setImportError(undefined);
+                setImportWarnings([]);
+                setImportedProjectId(undefined);
                 setIsImportOpen(true);
               }}
             />
@@ -375,34 +414,65 @@ export default function ProjectsPage() {
           header={<DialogHeader title="Import project" onOpenChange={setIsImportOpen} />}
           content={
             <LayoutContent>
-              <FileInput
-                label="Bundle file"
-                description="An .openbench.json file exported from OpenBench."
-                accept=".json,application/json"
-                mode="dropzone"
-                value={importFile}
-                onChange={(files) => {
-                  setImportError(undefined);
-                  setImportFile(Array.isArray(files) ? (files[0] ?? null) : files);
-                }}
-                status={
-                  importError === undefined
-                    ? undefined
-                    : { type: "error", message: importError }
-                }
-              />
+              <VStack gap={2}>
+                {importedProjectId !== undefined && importWarnings.length > 0 ? (
+                  <Banner
+                    status="warning"
+                    title="Imported with warnings"
+                    description="Some content could not be brought over from the KiCad file:"
+                  >
+                    <ul>
+                      {importWarnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </ul>
+                  </Banner>
+                ) : (
+                  <FileInput
+                    label="Project file"
+                    description="An .openbench.json bundle or a KiCad .kicad_sch schematic."
+                    accept=".json,application/json,.kicad_sch"
+                    mode="dropzone"
+                    value={importFile}
+                    onChange={(files) => {
+                      setImportError(undefined);
+                      setImportFile(Array.isArray(files) ? (files[0] ?? null) : files);
+                    }}
+                    status={
+                      importError === undefined
+                        ? undefined
+                        : { type: "error", message: importError }
+                    }
+                  />
+                )}
+              </VStack>
             </LayoutContent>
           }
           footer={
             <LayoutFooter hasDivider>
               <HStack gap={1} hAlign="end">
-                <Button label="Cancel" variant="ghost" onClick={() => setIsImportOpen(false)} />
                 <Button
-                  label="Import"
-                  variant="primary"
-                  isDisabled={importFile === null}
-                  clickAction={handleImport}
+                  label={importedProjectId === undefined ? "Cancel" : "Close"}
+                  variant="ghost"
+                  onClick={() => setIsImportOpen(false)}
                 />
+                {importedProjectId === undefined ? (
+                  <Button
+                    label="Import"
+                    variant="primary"
+                    isDisabled={importFile === null}
+                    clickAction={handleImport}
+                  />
+                ) : (
+                  <Button
+                    label="Open project"
+                    variant="primary"
+                    onClick={() => {
+                      setIsImportOpen(false);
+                      openProject(importedProjectId);
+                    }}
+                  />
+                )}
               </HStack>
             </LayoutFooter>
           }

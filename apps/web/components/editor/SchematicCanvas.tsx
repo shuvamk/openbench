@@ -179,6 +179,7 @@ export function SchematicCanvas() {
       const placement = getInstancePlacement(schematic, id);
       grabOffsets.set(id, { x: placement.x - world.x, y: placement.y - world.y });
     }
+    state.beginGesture();
     dragRef.current = { kind: "move", pointerId: e.pointerId, grabOffsets };
     capturePointer(e);
   };
@@ -221,6 +222,7 @@ export function SchematicCanvas() {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
     dragRef.current = null;
+    if (drag.kind === "move") useEditorStore.getState().endGesture();
     if (drag.kind === "marquee" && marquee && schematic) {
       const minX = Math.min(marquee.a.x, marquee.b.x);
       const maxX = Math.max(marquee.a.x, marquee.b.x);

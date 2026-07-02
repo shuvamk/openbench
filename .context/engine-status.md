@@ -75,8 +75,8 @@
 - Q2 resolved → ADR-0011: **QEMU (qemu-xtensa-esp32) over Renode** for ESP32 virtual
   flash; `generateVirtualMachineConfig` emits a qemu-system-xtensa launch stub.
 - Gaps: no real `pio run` exercised in CI; no end-to-end flash-to-emulator execution
-  yet; MCP server wrappers (`server.ts`) pending for all three adapters — tracked as a
-  Phase 1 follow-up issue.
+  yet. MCP `server.ts` wrappers landed for all three adapters (issue #20); bin
+  distribution needs a TS build step (packaging follow-up).
 
 ## Production-readiness checklist per adapter
 
@@ -85,4 +85,4 @@
 - [x] failure modes return structured errors (all adapters)
 - [x] provenance stamped on every produced document (all adapters)
 - [x] EECircuitBackend verified in a real browser session (2026-07-02)
-- [ ] MCP server wrappers exposing the tool contract over stdio
+- [x] MCP server wrappers implemented (buildServer + handlers per adapter, issue #20) — stdio bin distribution pending a TS build step (follow-up)

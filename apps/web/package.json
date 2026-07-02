@@ -18,6 +18,7 @@
     "zustand": "^5.0.0",
     "@openbench/registry": "*",
     "@openbench/netlist-compiler": "*",
+    "@openbench/mcp-kicad": "*",
     "@openbench/mcp-sim-ngspice": "*"
   },
   "devDependencies": {

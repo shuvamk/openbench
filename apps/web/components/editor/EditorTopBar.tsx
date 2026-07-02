@@ -1,15 +1,82 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Button } from "@astryxdesign/core/Button";
 import { Link } from "@astryxdesign/core/Link";
+import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { HStack, StackItem } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useEditorStore } from "../../lib/editor/store";
+import { exportProjectToKicad } from "../../lib/kicad/io";
 import { RunButton } from "../sim/RunButton";
+
+/** Trigger a browser download (same Blob + anchor pattern as the dashboard export). */
+function downloadText(filename: string, text: string, mimeType: string) {
+  const blob = new Blob([text], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function UndoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M5.5 3.5 2.5 6.5l3 3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2.5 6.5h7a4 4 0 0 1 0 8h-3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="m10.5 3.5 3 3-3 3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13.5 6.5h-7a4 4 0 0 0 0 8h3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  );
+}
 
 function ZoomOutIcon() {
   return (
@@ -38,8 +105,30 @@ export function EditorTopBar() {
   const zoom = useEditorStore((s) => s.zoom);
   const setZoom = useEditorStore((s) => s.setZoom);
   const renameProject = useEditorStore((s) => s.renameProject);
+  const canUndo = useEditorStore((s) => s.past.length > 0);
+  const canRedo = useEditorStore((s) => s.future.length > 0);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
 
   const [draftName, setDraftName] = useState<string | null>(null);
+
+  // Keyboard: Cmd/Ctrl+Z undoes, Cmd/Ctrl+Shift+Z redoes. Window-level, like
+  // the canvas shortcuts, and equally inert while typing in inputs.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      if (isEditableTarget(e.target)) return;
+      e.preventDefault();
+      const state = useEditorStore.getState();
+      if (e.shiftKey) {
+        state.redo();
+      } else {
+        state.undo();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const projectName = bundle?.project.name ?? "Loading…";
 
@@ -114,6 +203,29 @@ export function EditorTopBar() {
         <StackItem size="static">
           <HStack gap={1} vAlign="center">
             <IconButton
+              label="Undo"
+              tooltip="Undo (⌘Z)"
+              icon={<UndoIcon />}
+              variant="ghost"
+              size="sm"
+              isDisabled={!canUndo}
+              onClick={() => undo()}
+            />
+            <IconButton
+              label="Redo"
+              tooltip="Redo (⇧⌘Z)"
+              icon={<RedoIcon />}
+              variant="ghost"
+              size="sm"
+              isDisabled={!canRedo}
+              onClick={() => redo()}
+            />
+          </HStack>
+        </StackItem>
+
+        <StackItem size="static">
+          <HStack gap={1} vAlign="center">
+            <IconButton
               label="Zoom out"
               icon={<ZoomOutIcon />}
               variant="ghost"
@@ -142,6 +254,24 @@ export function EditorTopBar() {
           <div id="ob-run-slot">
             <RunButton />
           </div>
+        </StackItem>
+
+        <StackItem size="static">
+          <MoreMenu
+            label="More project actions"
+            size="sm"
+            isDisabled={!bundle}
+            items={[
+              {
+                label: "Export .kicad_sch",
+                onClick: () => {
+                  if (!bundle) return;
+                  const { filename, text } = exportProjectToKicad(bundle);
+                  downloadText(filename, text, "text/plain");
+                },
+              },
+            ]}
+          />
         </StackItem>
       </HStack>
     </div>
