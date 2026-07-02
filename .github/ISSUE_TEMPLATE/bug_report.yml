@@ -1,0 +1,25 @@
+name: Bug report
+description: Something broken vs documented behavior
+labels: ["type:bug", "status:ready", "p2"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Steps, a schematic .openbench.json export, or a failing test — anything an agent can act on without asking follow-ups.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: ["frontend (editor/dashboard)", "ir-schema", "mcp-kicad", "mcp-sim", "mcp-firmware", "registry", "agent-ops"]
+    validations:
+      required: true

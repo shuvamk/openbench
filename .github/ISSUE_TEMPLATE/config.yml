@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Live app
+    url: https://openbench-eta.vercel.app
+    about: Try OpenBench in your browser — no account, no install.
