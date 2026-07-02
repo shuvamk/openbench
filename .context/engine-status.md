@@ -6,7 +6,7 @@
 
 | Engine | Package | Status | Backend |
 | --- | --- | --- | --- |
-| IR core | `packages/ir-schema` | planned → in progress | pure TS (zod) |
+| IR core | `packages/ir-schema` | partial — `component` kind wired | pure TS (zod) |
 | Netlist compiler | `packages/netlist-compiler` | planned | pure TS |
 | KiCad | `packages/mcp-kicad` | planned | `.kicad_sch` S-expression parser (pure TS), no kicad-cli dependency for Phase 1 |
 | ngspice | `packages/mcp-sim-ngspice` | planned | WASM (`eecircuit-engine`) in-browser; native `ngspice` CLI optional |
@@ -16,7 +16,8 @@
 ## IR core (`packages/ir-schema`)
 
 - Scope: all six IR kinds, validate(), version compat check, JSON Schema export.
-- Known gaps: none recorded yet.
+- Wired: `component` kind (validateComponent — duplicate-pin + sim-template-reference checks), version compatibility (`isSupportedIrVersion`).
+- Known gaps: `schematic`/`netlist`/`simulationRun`/`firmwareTarget`/`project` kinds pending (Phase 1); JSON Schema export pending.
 
 ## KiCad (`packages/mcp-kicad`)
 
