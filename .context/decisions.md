@@ -128,3 +128,16 @@ stays outside the writer.
 **Consequences:** Human action wanted: fix GitHub billing (github.com → Settings →
 Billing) to restore fully-hosted, fully-autonomous CI; PRs then re-check and
 auto-merge bottom-up.
+
+## ADR-0011 — QEMU over Renode for ESP32 virtual flash (2026-07-02)
+
+**Decision:** Phase 1 virtual-flash targets use QEMU (`qemu-system-xtensa`, Espressif's
+qemu-xtensa-esp32 fork) rather than Renode. `generateVirtualMachineConfig` in
+`packages/mcp-firmware-platformio` emits QEMU launch configs; the firmwareTarget IR
+`flashTarget.engine` enum keeps both `renode` and `qemu`.
+**Rationale:** Resolves open question Q2 — Renode's Xtensa/ESP32 support is limited
+upstream, while Espressif maintains a QEMU fork specifically for esp32 targets. The IR
+keeps `renode` in the enum so non-Xtensa MCU families (e.g. STM32 in Phase 2+) can use
+Renode where it is strongest.
+**Consequences:** End-to-end flash-to-emulator execution is the next mcp-firmware
+milestone; requires the Espressif QEMU binary locally (never on Vercel).
