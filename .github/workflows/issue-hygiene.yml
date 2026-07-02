@@ -1,0 +1,19 @@
+# Nightly janitor: auto-triages mislabeled issues, reaps stale in-progress claims.
+name: Issue hygiene
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+jobs:
+  issue-hygiene:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/issue-hygiene.mjs

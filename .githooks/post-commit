@@ -1,0 +1,3 @@
+#!/bin/bash
+# context-sync after every commit (warn-only; CI enforces).
+CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" node "$(git rev-parse --show-toplevel)/.claude/hooks/context-sync-check.mjs" || true

@@ -10,3 +10,4 @@ coverage/
 .DS_Store
 *.log
 .turbo/
+.claude/.tdd-last-test-touch

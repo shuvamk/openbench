@@ -1,0 +1,59 @@
+# After a merge to main (which auto-deploys to Vercel), verify production is healthy.
+# On failure: open a p0 bug and a revert PR (which auto-merges once green).
+# The production URL is stored in the repo variable OPENBENCH_PROD_URL.
+name: Deploy sanity
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  deploy-sanity:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wait for Vercel to pick up the deploy
+        run: sleep 120
+      - name: Probe production
+        id: probe
+        env:
+          PROD_URL: ${{ vars.OPENBENCH_PROD_URL }}
+        run: |
+          if [ -z "$PROD_URL" ]; then
+            echo "OPENBENCH_PROD_URL repo variable not set — skipping probe (pre-first-deploy)."
+            echo "healthy=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 "$PROD_URL" || echo 000)
+          echo "HTTP $code from $PROD_URL"
+          if [ "$code" = "200" ] && grep -qi "openbench" /tmp/body; then
+            echo "healthy=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "healthy=no" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Revert main and raise p0 on failure
+        if: steps.probe.outputs.healthy == 'no'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          SHA="${{ github.sha }}"
+          git config user.name "openbench-deploy-sanity"
+          git config user.email "bot@openbench"
+          BRANCH="revert/deploy-$(echo "$SHA" | cut -c1-8)"
+          git checkout -b "$BRANCH"
+          git revert --no-edit "$SHA" || { echo "revert conflict — manual p0 only"; git revert --abort || true; }
+          git push origin "$BRANCH" || true
+          gh issue create \
+            --title "p0: production deploy unhealthy after $SHA" \
+            --label "type:bug,area:agent-ops,status:ready,p0" \
+            --body "deploy-sanity probe failed after merge of $SHA. Revert PR opened from \`$BRANCH\` (auto-merges when green). Investigate before re-landing." || true
+          gh pr create \
+            --title "revert: unhealthy production deploy ($SHA)" \
+            --body "Automatic revert by deploy-sanity. Production probe failed. Fixes nothing — restores last good state." \
+            --head "$BRANCH" || true

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Full test suite + IR schema validation before any push. Never push red.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+echo "pre-push: running full test suite…"
+npm test
+echo "pre-push: validating IR schema spec-sync…"
+npm run validate:ir --if-present

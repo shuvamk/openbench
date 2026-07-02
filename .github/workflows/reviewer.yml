@@ -1,0 +1,39 @@
+# reviewer-agent — the sole merge gate (ADR-0003). Required status check on main.
+# Mechanical adversarial checks always run; if an ANTHROPIC_API_KEY secret exists,
+# an LLM adversarial review runs on top and can also reject.
+name: Reviewer
+on:
+  pull_request:
+jobs:
+  reviewer-agent:
+    name: reviewer-agent
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Mechanical adversarial review
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node .github/scripts/reviewer-check.mjs
+      - name: LLM adversarial review (auto-enabled when key present)
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are the OpenBench reviewer agent — the sole merge gate; no human backstops you.
+            Adversarially review this PR per CLAUDE.md and .context/: untested changed paths,
+            IR schema violations vs .context/interchange-format.md, stale .context entries,
+            deploy risk (main auto-deploys to production). If you find a blocking problem,
+            exit non-zero with a clear explanation. Otherwise summarize why it is safe.

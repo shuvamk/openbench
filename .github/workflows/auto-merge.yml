@@ -1,0 +1,17 @@
+# Enables GitHub native auto-merge on every PR: it merges automatically once the
+# required checks (test, reviewer-agent) are green. No human gate exists.
+name: Auto-merge
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+jobs:
+  enable-auto-merge:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'do-not-merge') && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --merge "${{ github.event.pull_request.html_url }}" || echo "auto-merge not available yet (checks may already be green or protection not set)"
