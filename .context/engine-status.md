@@ -61,7 +61,7 @@
   deterministic MockBackend (node-safe) and EECircuitBackend (WASM, dynamic import).
   `runSimulation` docs pass validateSimulationRun; failures → status `failed` with
   inline logs, never throws.
-- Gaps: EECircuitBackend browser verification pending; native ngspice CLI backend not
+- Verified 2026-07-02: EECircuitBackend ran a real transient in a browser session (RC low-pass demo, deck `.tran 10us 10ms`, physically-correct DC steady-state waveforms, zero console errors). Gaps: native ngspice CLI backend not
   implemented; operating-point mode pending (transient only); remote sample URLs are
   pass-through (`decodeSamples` throws for http/s3).
 - Limits: MockBackend 256 samples/signal; WASM ~1M samples/signal (ADR-0007 guard).
@@ -84,5 +84,5 @@
 - [x] round-trip contract test green with lossy fields documented (kicad)
 - [x] failure modes return structured errors (all adapters)
 - [x] provenance stamped on every produced document (all adapters)
-- [ ] EECircuitBackend verified in a real browser session
+- [x] EECircuitBackend verified in a real browser session (2026-07-02)
 - [ ] MCP server wrappers exposing the tool contract over stdio
