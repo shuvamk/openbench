@@ -10,6 +10,7 @@ import { HStack, StackItem } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useEditorStore } from "../../lib/editor/store";
+import { useLiveStore } from "../../lib/live/store";
 import { exportProjectToKicad } from "../../lib/kicad/io";
 import { RunButton } from "../sim/RunButton";
 
@@ -109,6 +110,9 @@ export function EditorTopBar() {
   const canRedo = useEditorStore((s) => s.future.length > 0);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  const mode = useLiveStore((s) => s.mode);
+  const enterLive = useLiveStore((s) => s.enterLive);
+  const exitLive = useLiveStore((s) => s.exitLive);
 
   const [draftName, setDraftName] = useState<string | null>(null);
 
@@ -246,6 +250,24 @@ export function EditorTopBar() {
               variant="ghost"
               size="sm"
               onClick={() => setZoom(zoom * 1.25)}
+            />
+          </HStack>
+        </StackItem>
+
+        <StackItem size="static">
+          <HStack gap={0.5} vAlign="center">
+            <Button
+              label="Design"
+              size="sm"
+              variant={mode === "design" ? "secondary" : "ghost"}
+              onClick={() => exitLive()}
+            />
+            <Button
+              label="Live"
+              size="sm"
+              variant={mode === "live" ? "secondary" : "ghost"}
+              isDisabled={!bundle}
+              onClick={() => void enterLive()}
             />
           </HStack>
         </StackItem>
