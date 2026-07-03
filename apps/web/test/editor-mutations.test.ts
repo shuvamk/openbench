@@ -323,7 +323,8 @@ describe("registry coverage", () => {
     let sch = rcLowpass();
     for (const component of registryComponents) {
       const placed = placeInstance(sch, component, { x: 0, y: 0 });
-      expect(placed.instanceId).toMatch(/^(R|C|D|V|U|GND)\d+$/);
+      // Readable per-part prefixes landed with issue #23 (BTN/SW/M/BZ/LA/RV/LDR/Q).
+      expect(placed.instanceId).toMatch(/^(R|C|D|V|U|GND|BTN|SW|M|BZ|LA|RV|LDR|Q)\d+$/);
       sch = placed.schematic;
     }
     expectValid(sch);

@@ -7,7 +7,9 @@ import { Inspector } from "../../../components/editor/Inspector";
 import { Palette } from "../../../components/editor/Palette";
 import { SchematicCanvas } from "../../../components/editor/SchematicCanvas";
 import { SimPanel } from "../../../components/sim/SimPanel";
+import { PlaybackBar } from "../../../components/editor/PlaybackBar";
 import { resetEditorState, useEditorStore } from "../../../lib/editor/store";
+import { resetLiveState, useLiveStore } from "../../../lib/live/store";
 import { resetSimState } from "../../../lib/sim/store";
 
 /**
@@ -25,10 +27,12 @@ export default function EditorPage({
   const { projectId } = use(params);
   const loadProject = useEditorStore((s) => s.loadProject);
   const loadError = useEditorStore((s) => s.loadError);
+  const mode = useLiveStore((s) => s.mode);
 
   useEffect(() => {
     resetEditorState();
     resetSimState();
+    resetLiveState();
     void loadProject(projectId);
     return () => {
       // Flush any pending autosave before leaving the editor.
@@ -54,11 +58,12 @@ export default function EditorPage({
         </div>
       ) : (
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          <Palette />
+          {mode === "design" && <Palette />}
           <SchematicCanvas />
-          <Inspector />
+          {mode === "design" && <Inspector />}
         </div>
       )}
+      {mode === "live" && <PlaybackBar />}
       <div id="ob-sim-panel-slot">
         <SimPanel />
       </div>

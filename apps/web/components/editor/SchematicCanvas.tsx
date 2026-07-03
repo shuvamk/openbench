@@ -11,6 +11,8 @@ import {
   toPolylinePoints,
 } from "../../lib/editor/geometry";
 import { clampZoom, useEditorStore, type Point } from "../../lib/editor/store";
+import { useLiveStore } from "../../lib/live/store";
+import { LiveOverlays, LiveSliderPopover } from "./LiveOverlays";
 import { SymbolGlyph } from "./symbols";
 
 /**
@@ -141,7 +143,9 @@ export function SchematicCanvas() {
 
   const onBackgroundPointerDown = (e: React.PointerEvent) => {
     const button = eventButton(e);
-    if (button === 1 || (button === 0 && spaceHeldRef.current)) {
+    const live = useLiveStore.getState().mode === "live";
+    // In live mode any background drag pans (no marquee/selection).
+    if (button === 1 || (button === 0 && (spaceHeldRef.current || live))) {
       e.preventDefault();
       dragRef.current = {
         kind: "pan",
@@ -163,6 +167,7 @@ export function SchematicCanvas() {
   };
 
   const onInstancePointerDown = (instanceId: string) => (e: React.PointerEvent) => {
+    if (useLiveStore.getState().mode === "live") return; // live overlays own interaction
     if (eventButton(e) !== 0 || spaceHeldRef.current) return;
     e.stopPropagation();
     const state = useEditorStore.getState();
@@ -179,11 +184,13 @@ export function SchematicCanvas() {
       const placement = getInstancePlacement(schematic, id);
       grabOffsets.set(id, { x: placement.x - world.x, y: placement.y - world.y });
     }
+    state.beginGesture();
     dragRef.current = { kind: "move", pointerId: e.pointerId, grabOffsets };
     capturePointer(e);
   };
 
   const onPinPointerDown = (instanceId: string, pinId: string) => (e: React.PointerEvent) => {
+    if (useLiveStore.getState().mode === "live") return;
     if (eventButton(e) !== 0) return;
     e.stopPropagation();
     const state = useEditorStore.getState();
@@ -221,6 +228,7 @@ export function SchematicCanvas() {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
     dragRef.current = null;
+    if (drag.kind === "move") useEditorStore.getState().endGesture();
     if (drag.kind === "marquee" && marquee && schematic) {
       const minX = Math.min(marquee.a.x, marquee.b.x);
       const maxX = Math.max(marquee.a.x, marquee.b.x);
@@ -242,6 +250,7 @@ export function SchematicCanvas() {
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {
+    if (useLiveStore.getState().mode === "live") return;
     const state = useEditorStore.getState();
     if (state.tool !== "place" || !state.placingComponentId) return;
     const component = getComponent(state.placingComponentId);
@@ -381,6 +390,8 @@ export function SchematicCanvas() {
             );
           })}
 
+          <LiveModeOverlaySlot />
+
           {marquee && (
             <rect
               data-marquee
@@ -416,8 +427,22 @@ export function SchematicCanvas() {
           Double-click to place {getComponent(placingComponentId)?.name ?? "component"} — Esc to cancel
         </div>
       )}
+      <LiveSliderSlot />
     </div>
   );
+}
+
+/** Overlays only mount in live mode, keeping design-mode renders untouched. */
+function LiveModeOverlaySlot() {
+  const mode = useLiveStore((s) => s.mode);
+  if (mode !== "live") return null;
+  return <LiveOverlays />;
+}
+
+function LiveSliderSlot() {
+  const mode = useLiveStore((s) => s.mode);
+  if (mode !== "live") return null;
+  return <LiveSliderPopover />;
 }
 
 function netWireSegments(schematic: Schematic, net: Net): Point[][] {

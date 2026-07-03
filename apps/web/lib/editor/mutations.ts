@@ -31,7 +31,20 @@ type Rotation = 0 | 90 | 180 | 270;
  * R/C/D/V come from the SPICE template's leading letters, MCUs are U,
  * ground stays GND. Unknown parts fall back to U.
  */
+const ID_PREFIXES: Record<string, string> = {
+  cmp_pushbutton: "BTN",
+  cmp_switch_spst: "SW",
+  cmp_dc_motor: "M",
+  cmp_buzzer: "BZ",
+  cmp_lamp: "LA",
+  cmp_potentiometer: "RV",
+  cmp_ldr: "LDR",
+  cmp_npn_2n2222: "Q",
+};
+
 export function refPrefix(component: Component): string {
+  const byId = ID_PREFIXES[component.id];
+  if (byId) return byId;
   if (component.category === "mcu") return "U";
   const template = component.simModel?.template;
   const match = template?.match(/^([A-Za-z]+)\{ref\}/);

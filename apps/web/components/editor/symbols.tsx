@@ -140,6 +140,151 @@ function McuGlyph({ component }: { component: Component }) {
   );
 }
 
+function DiodeGlyph() {
+  return (
+    <g>
+      <line x1={-20} y1={0} x2={-8} y2={0} {...strokeProps} />
+      <line x1={8} y1={0} x2={20} y2={0} {...strokeProps} />
+      <polygon
+        points="-8,-9 -8,9 8,0"
+        fill={BODY}
+        stroke={STROKE}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+      />
+      <line x1={8} y1={-9} x2={8} y2={9} {...strokeProps} strokeWidth={2} />
+    </g>
+  );
+}
+
+function NpnGlyph() {
+  return (
+    <g>
+      <circle cx={0} cy={0} r={16} fill={BODY} stroke={STROKE} strokeWidth={1.5} />
+      <line x1={-22} y1={0} x2={-6} y2={0} {...strokeProps} />
+      <line x1={-6} y1={-10} x2={-6} y2={10} {...strokeProps} strokeWidth={2} />
+      <line x1={-6} y1={-4} x2={8} y2={-14} {...strokeProps} />
+      <line x1={8} y1={-14} x2={14} y2={-24} {...strokeProps} />
+      <line x1={-6} y1={4} x2={8} y2={14} {...strokeProps} />
+      <line x1={8} y1={14} x2={14} y2={24} {...strokeProps} />
+      {/* emitter arrow */}
+      <polygon points="8,14 2,12 5,7" fill={STROKE} stroke="none" />
+    </g>
+  );
+}
+
+function PotentiometerGlyph() {
+  return (
+    <g>
+      <line x1={-30} y1={0} x2={-20} y2={0} {...strokeProps} />
+      <line x1={20} y1={0} x2={30} y2={0} {...strokeProps} />
+      <rect x={-20} y={-7} width={40} height={14} fill={BODY} stroke={STROKE} strokeWidth={1.5} />
+      {/* wiper arrow */}
+      <line x1={0} y1={-22} x2={0} y2={-11} {...strokeProps} />
+      <polygon points="0,-8 -4,-14 4,-14" fill={STROKE} stroke="none" />
+    </g>
+  );
+}
+
+function PushbuttonGlyph() {
+  return (
+    <g>
+      <line x1={-22} y1={0} x2={-10} y2={0} {...strokeProps} />
+      <line x1={10} y1={0} x2={22} y2={0} {...strokeProps} />
+      <circle cx={-10} cy={0} r={2.5} fill={STROKE} />
+      <circle cx={10} cy={0} r={2.5} fill={STROKE} />
+      {/* raised bridge + actuator stem */}
+      <line x1={-12} y1={-8} x2={12} y2={-8} {...strokeProps} strokeWidth={2} />
+      <line x1={0} y1={-8} x2={0} y2={-14} {...strokeProps} />
+    </g>
+  );
+}
+
+function SwitchGlyph() {
+  return (
+    <g>
+      <line x1={-22} y1={0} x2={-10} y2={0} {...strokeProps} />
+      <line x1={10} y1={0} x2={22} y2={0} {...strokeProps} />
+      <circle cx={-10} cy={0} r={2.5} fill={STROKE} />
+      <circle cx={10} cy={0} r={2.5} fill={STROKE} />
+      {/* open lever */}
+      <line x1={-10} y1={0} x2={9} y2={-12} {...strokeProps} strokeWidth={2} />
+    </g>
+  );
+}
+
+function RoundBodyGlyph({ children }: { children: React.ReactNode }) {
+  return (
+    <g>
+      <line x1={-24} y1={0} x2={-12} y2={0} {...strokeProps} />
+      <line x1={12} y1={0} x2={24} y2={0} {...strokeProps} />
+      <circle cx={0} cy={0} r={12} fill={BODY} stroke={STROKE} strokeWidth={1.5} />
+      {children}
+    </g>
+  );
+}
+
+function MotorGlyph() {
+  return (
+    <RoundBodyGlyph>
+      <text x={0} y={4} fontSize={11} fill={STROKE} textAnchor="middle" fontWeight={600}>
+        M
+      </text>
+    </RoundBodyGlyph>
+  );
+}
+
+function BuzzerGlyph() {
+  return (
+    <RoundBodyGlyph>
+      <line x1={-4} y1={-6} x2={-4} y2={6} {...strokeProps} strokeWidth={1} />
+      <line x1={0} y1={-8} x2={0} y2={8} {...strokeProps} strokeWidth={1} />
+      <line x1={4} y1={-6} x2={4} y2={6} {...strokeProps} strokeWidth={1} />
+    </RoundBodyGlyph>
+  );
+}
+
+function LampGlyph() {
+  return (
+    <RoundBodyGlyph>
+      <line x1={-8} y1={-8} x2={8} y2={8} {...strokeProps} strokeWidth={1} />
+      <line x1={-8} y1={8} x2={8} y2={-8} {...strokeProps} strokeWidth={1} />
+    </RoundBodyGlyph>
+  );
+}
+
+function RgbLedGlyph() {
+  return (
+    <g>
+      {[-20, 0, 20].map((y) => (
+        <line key={y} x1={-24} y1={y} x2={-10} y2={y} {...strokeProps} />
+      ))}
+      <line x1={10} y1={0} x2={24} y2={0} {...strokeProps} />
+      <rect x={-10} y={-26} width={20} height={52} rx={4} fill={BODY} stroke={STROKE} strokeWidth={1.5} />
+      <polygon points="-6,-6 -6,6 5,0" fill={BODY} stroke={STROKE} strokeWidth={1.2} strokeLinejoin="round" />
+      <line x1={5} y1={-6} x2={5} y2={6} {...strokeProps} strokeWidth={1.5} />
+      <text x={-14} y={-17} fontSize={7} fill={STROKE} textAnchor="start">R</text>
+      <text x={-14} y={3} fontSize={7} fill={STROKE} textAnchor="start">G</text>
+      <text x={-14} y={23} fontSize={7} fill={STROKE} textAnchor="start">B</text>
+    </g>
+  );
+}
+
+function LdrGlyph() {
+  return (
+    <g>
+      <line x1={-30} y1={0} x2={-20} y2={0} {...strokeProps} />
+      <line x1={20} y1={0} x2={30} y2={0} {...strokeProps} />
+      <rect x={-20} y={-7} width={40} height={14} fill={BODY} stroke={STROKE} strokeWidth={1.5} />
+      {/* incoming light arrows */}
+      <line x1={-12} y1={-16} x2={-6} y2={-9} {...strokeProps} strokeWidth={1} />
+      <polygon points="-6,-9 -11,-10 -8,-14" fill={STROKE} stroke="none" />
+      <line x1={-2} y1={-16} x2={4} y2={-9} {...strokeProps} strokeWidth={1} />
+      <polygon points="4,-9 -1,-10 2,-14" fill={STROKE} stroke="none" />
+    </g>
+  );
+}
+
 export function SymbolGlyph({ component }: { component: Component }) {
   switch (getSymbolKind(component)) {
     case "resistor":
@@ -148,6 +293,26 @@ export function SymbolGlyph({ component }: { component: Component }) {
       return <CapacitorGlyph />;
     case "led":
       return <LedGlyph />;
+    case "diode":
+      return <DiodeGlyph />;
+    case "npn":
+      return <NpnGlyph />;
+    case "potentiometer":
+      return <PotentiometerGlyph />;
+    case "pushbutton":
+      return <PushbuttonGlyph />;
+    case "switch":
+      return <SwitchGlyph />;
+    case "motor":
+      return <MotorGlyph />;
+    case "buzzer":
+      return <BuzzerGlyph />;
+    case "lamp":
+      return <LampGlyph />;
+    case "rgbled":
+      return <RgbLedGlyph />;
+    case "ldr":
+      return <LdrGlyph />;
     case "vsource":
       return <VsourceGlyph />;
     case "ground":

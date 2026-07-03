@@ -58,6 +58,14 @@ Status of each: [engine-status.md](engine-status.md).
 - `mcp-firmware-platformio` — firmware source + `firmwareTarget` IR → PlatformIO build →
   artifact + flash-to-virtual-MCU (Renode machine config). Runs locally/CI, not on Vercel.
 
+### 3.5 Live view — `apps/web/lib/live`
+- `derive.ts`: pure physics derivation — net-voltage waveforms → per-instance visual
+  state (Shockley LED brightness, motor rpm fraction, lamp/buzzer intensity, switch
+  state). `store.ts`: playback (scrub/play/speed/loop) + interactions that mutate IR
+  parameter overrides and re-run the simulation debounced. Overlays render inside the
+  canvas world transform; interactive parts (button/switch/pot/LDR) are actuated
+  directly on the canvas in Live mode.
+
 ### 4. UI — `apps/web`
 - Next.js (App Router) deployed on Vercel; API route handlers under `app/api/` serve
   IR documents (project CRUD, registry lookup, sim orchestration).

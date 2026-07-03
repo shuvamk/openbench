@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | IR core | `packages/ir-schema` | **wired** — all six kinds | pure TS (zod) |
 | Netlist compiler | `packages/netlist-compiler` | **wired** | pure TS |
-| Registry | `packages/registry` | **wired** — 6 curated parts | pure TS data |
+| Registry | `packages/registry` | **wired** — 17 curated parts | pure TS data |
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient, WASM+mock backends | WASM (`eecircuit-engine`) in-browser; native CLI pending |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
@@ -26,7 +26,9 @@
 
 ## Registry (`packages/registry`)
 
-- Wired (issue #6): `cmp_resistor_generic`, `cmp_capacitor_generic`, `cmp_led_generic`
+- Wired (issues #6, #17, #22): 17 parts — passives, LED/RGB/diode/NPN, PULSE & DC sources,
+  interactive parts (pushbutton, switch, potentiometer, LDR) via `derivedParams`, and
+  electromechanical visuals (DC motor, buzzer, lamp). Original core: `cmp_resistor_generic`, `cmp_capacitor_generic`, `cmp_led_generic`
   (DLED modelCard), `cmp_vsource_dc`, `cmp_ground` (no simModel — names the ground net;
   netlist compiler maps it to SPICE node 0), `cmp_esp32_devkit` (no simModel — emulated,
   not SPICE'd). API: `registryComponents`, `getComponent(id)`. All pass validateComponent.
@@ -75,8 +77,8 @@
 - Q2 resolved → ADR-0011: **QEMU (qemu-xtensa-esp32) over Renode** for ESP32 virtual
   flash; `generateVirtualMachineConfig` emits a qemu-system-xtensa launch stub.
 - Gaps: no real `pio run` exercised in CI; no end-to-end flash-to-emulator execution
-  yet; MCP server wrappers (`server.ts`) pending for all three adapters — tracked as a
-  Phase 1 follow-up issue.
+  yet. MCP `server.ts` wrappers landed for all three adapters (issue #20); bin
+  distribution needs a TS build step (packaging follow-up).
 
 ## Production-readiness checklist per adapter
 
@@ -85,4 +87,4 @@
 - [x] failure modes return structured errors (all adapters)
 - [x] provenance stamped on every produced document (all adapters)
 - [x] EECircuitBackend verified in a real browser session (2026-07-02)
-- [ ] MCP server wrappers exposing the tool contract over stdio
+- [x] MCP server wrappers implemented (buildServer + handlers per adapter, issue #20) — stdio bin distribution pending a TS build step (follow-up)

@@ -141,19 +141,51 @@ describe("ensureSeeded", () => {
       "cmp_capacitor_generic",
       "cmp_ground",
       "cmp_resistor_generic",
-      "cmp_vsource_dc",
+      "cmp_vsource_pulse",
     ]);
     // alias also resolves
     expect(await store.load("demo")).toEqual(demo);
   });
 
+  it('creates the playground project (alias "playground") from the playground template when missing', async () => {
+    const store = createMemoryProjectStore();
+    await ensureSeeded(store);
+
+    const playground = await store.load("proj_playground");
+    expect(playground).toBeDefined();
+    expect(playground?.project.id).toBe("proj_playground");
+    expect(playground?.project.name).toBe("Interactive playground");
+    expect(playground?.schematic.projectId).toBe("proj_playground");
+    expect(playground?.project.schematicId).toBe(playground?.schematic.id);
+    // interactive playground content
+    expect(
+      playground?.schematic.instances.map((i) => i.componentId).sort(),
+    ).toEqual([
+      "cmp_dc_motor",
+      "cmp_ground",
+      "cmp_lamp",
+      "cmp_led_generic",
+      "cmp_potentiometer",
+      "cmp_pushbutton",
+      "cmp_resistor_generic",
+      "cmp_switch_spst",
+      "cmp_vsource_dc",
+    ]);
+    // alias also resolves
+    expect(await store.load("playground")).toEqual(playground);
+  });
+
   it("is idempotent", async () => {
     const store = createMemoryProjectStore();
     await ensureSeeded(store);
-    const first = await store.load("proj_demo");
+    // exactly the demo + playground seeds, nothing else
+    expect(await store.list()).toHaveLength(2);
+    const firstDemo = await store.load("proj_demo");
+    const firstPlayground = await store.load("proj_playground");
     await ensureSeeded(store);
-    expect(await store.list()).toHaveLength(1);
-    expect(await store.load("proj_demo")).toEqual(first);
+    expect(await store.list()).toHaveLength(2);
+    expect(await store.load("proj_demo")).toEqual(firstDemo);
+    expect(await store.load("proj_playground")).toEqual(firstPlayground);
   });
 
   it("does not overwrite an existing demo project", async () => {
@@ -166,6 +198,37 @@ describe("ensureSeeded", () => {
     await ensureSeeded(store);
     expect((await store.load("proj_demo"))?.project.name).toBe(
       "My customized demo",
+    );
+    // the playground is still seeded alongside the untouched demo
+    expect(await store.load("proj_playground")).toBeDefined();
+  });
+
+  it("does not overwrite an existing playground project", async () => {
+    const store = createMemoryProjectStore();
+    const custom = createFromTemplate("blank", "My customized playground");
+    custom.project.id = "proj_playground";
+    custom.schematic.projectId = "proj_playground";
+    await store.save(custom);
+
+    await ensureSeeded(store);
+    expect((await store.load("proj_playground"))?.project.name).toBe(
+      "My customized playground",
+    );
+  });
+
+  it("backfills the playground project when only the demo exists", async () => {
+    const store = createMemoryProjectStore();
+    const demo = createFromTemplate("rc-lowpass", "RC low-pass demo");
+    demo.project.id = "proj_demo";
+    demo.schematic.projectId = "proj_demo";
+    await store.save(demo);
+
+    await ensureSeeded(store);
+    expect((await store.load("proj_demo"))?.project.name).toBe(
+      "RC low-pass demo",
+    );
+    expect((await store.load("proj_playground"))?.project.name).toBe(
+      "Interactive playground",
     );
   });
 });

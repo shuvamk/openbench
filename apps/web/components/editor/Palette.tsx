@@ -16,7 +16,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   mcu: "Microcontrollers",
   power: "Power",
   sensor: "Sensors",
-  other: "Other",
+  other: "Electromechanical",
 };
 
 function groupByCategory(components: Component[]): Array<[string, Component[]]> {

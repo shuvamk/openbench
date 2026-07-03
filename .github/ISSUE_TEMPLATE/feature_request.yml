@@ -1,0 +1,16 @@
+name: Feature request
+description: New capability for the workbench
+labels: ["type:feature", "p2"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria (as tests, if you can)
+      description: This repo is built test-first by agents — the planner turns these into failing tests. Given/When/Then works great.

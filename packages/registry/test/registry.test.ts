@@ -3,9 +3,10 @@ import { validateComponent, type Component } from "@openbench/ir-schema";
 import { getComponent, registryComponents } from "../src/index";
 
 /**
- * Acceptance tests for issue #6 — the curated component registry.
- * Every entry is a full Component IR document (kind "component") stamped
- * with registry provenance; templates may only reference declared tokens.
+ * Acceptance tests for issue #6 (curated Phase 1 registry) and issue #22
+ * (ten real-world parts). Every entry is a full Component IR document
+ * (kind "component") stamped with registry provenance; templates may only
+ * reference declared tokens (ref, pin ids, parameter names, derivedParams keys).
  */
 
 const EXPECTED_IDS = [
@@ -13,8 +14,19 @@ const EXPECTED_IDS = [
   "cmp_capacitor_generic",
   "cmp_led_generic",
   "cmp_vsource_dc",
+  "cmp_vsource_pulse",
   "cmp_ground",
   "cmp_esp32_devkit",
+  "cmp_diode_generic",
+  "cmp_npn_2n2222",
+  "cmp_potentiometer",
+  "cmp_pushbutton",
+  "cmp_switch_spst",
+  "cmp_dc_motor",
+  "cmp_buzzer",
+  "cmp_lamp",
+  "cmp_rgb_led",
+  "cmp_ldr",
 ];
 
 const byId = (id: string): Component => {
@@ -24,7 +36,7 @@ const byId = (id: string): Component => {
 };
 
 describe("registryComponents", () => {
-  it("contains exactly the curated Phase 1 parts", () => {
+  it("contains exactly the curated parts (Phase 1 + issue #22)", () => {
     expect(registryComponents.map((c) => c.id).sort()).toEqual([...EXPECTED_IDS].sort());
   });
 
@@ -47,13 +59,14 @@ describe("registryComponents", () => {
     }
   });
 
-  it("every simModel template token is declared (ref, pin ids, parameter names)", () => {
+  it("every simModel template token is declared (ref, pin ids, parameter names, derivedParams keys)", () => {
     for (const component of registryComponents) {
       if (!component.simModel) continue;
       const declared = new Set([
         "ref",
         ...component.pins.map((p) => p.id),
         ...component.parameters.map((p) => p.name),
+        ...Object.keys(component.simModel.derivedParams ?? {}),
       ]);
       const tokens = [...component.simModel.template.matchAll(/\{([^{}]+)\}/g)].map(
         (m) => m[1],
@@ -129,6 +142,25 @@ describe("curated parts", () => {
     expect(vsource.simModel?.template).toBe("V{ref} {pos} {neg} DC {voltage}");
   });
 
+  it("cmp_vsource_pulse has pos/neg pins, PULSE timing parameters and a PULSE template", () => {
+    const vsource = byId("cmp_vsource_pulse");
+    expect(vsource.category).toBe("power");
+    expect(vsource.pins.map((p) => p.id)).toEqual(["pos", "neg"]);
+    expect(vsource.parameters).toEqual([
+      { name: "vlow", unit: "volt", default: 0, type: "number" },
+      { name: "vhigh", unit: "volt", default: 5, type: "number" },
+      { name: "tdelay", unit: "second", default: 0, type: "number" },
+      { name: "trise", unit: "second", default: 1e-6, type: "number" },
+      { name: "tfall", unit: "second", default: 1e-6, type: "number" },
+      { name: "ton", unit: "second", default: 4e-4, type: "number" },
+      { name: "tperiod", unit: "second", default: 1e-3, type: "number" },
+    ]);
+    expect(vsource.simModel?.template).toBe(
+      "V{ref} {pos} {neg} PULSE({vlow} {vhigh} {tdelay} {trise} {tfall} {ton} {tperiod})",
+    );
+    expect(vsource.footprint).toBeUndefined();
+  });
+
   it("cmp_ground is a single power_in pin with no simModel", () => {
     const ground = byId("cmp_ground");
     expect(ground.category).toBe("power");
@@ -152,5 +184,121 @@ describe("curated parts", () => {
     expect(types.get("GPIO4")).toBe("bidirectional");
     expect(types.get("TX0")).toBe("output");
     expect(types.get("RX0")).toBe("input");
+  });
+});
+
+describe("real-world parts (issue #22)", () => {
+  it("cmp_diode_generic has a/k pins and a 1N4148-style model card", () => {
+    const diode = byId("cmp_diode_generic");
+    expect(diode.category).toBe("active");
+    expect(diode.pins.map((p) => p.id)).toEqual(["a", "k"]);
+    expect(diode.parameters).toEqual([]);
+    expect(diode.simModel?.template).toBe("D{ref} {a} {k} D1N4148");
+    expect(diode.simModel?.modelCard).toBe(".model D1N4148 D(IS=2.52e-9 N=1.752)");
+  });
+
+  it("cmp_npn_2n2222 has c/b/e pins and a 2N2222 model card", () => {
+    const npn = byId("cmp_npn_2n2222");
+    expect(npn.category).toBe("active");
+    expect(npn.pins.map((p) => p.id)).toEqual(["c", "b", "e"]);
+    expect(npn.parameters).toEqual([]);
+    expect(npn.simModel?.template).toBe("Q{ref} {c} {b} {e} Q2N2222");
+    expect(npn.simModel?.modelCard).toBe(".model Q2N2222 NPN(IS=1e-14 BF=200)");
+  });
+
+  it("cmp_potentiometer derives both halves from rtotal and position", () => {
+    const pot = byId("cmp_potentiometer");
+    expect(pot.category).toBe("passive");
+    expect(pot.pins.map((p) => p.id)).toEqual(["p1", "wiper", "p2"]);
+    expect(pot.parameters).toEqual([
+      { name: "rtotal", unit: "ohm", default: 10000, type: "number" },
+      { name: "position", default: 0.5, type: "number" },
+    ]);
+    expect(pot.simModel?.derivedParams).toEqual({
+      rA: "rtotal*position + 1",
+      rB: "rtotal*(1-position) + 1",
+    });
+    expect(pot.simModel?.template).toBe(
+      "R{ref}A {p1} {wiper} {rA}\nR{ref}B {wiper} {p2} {rB}",
+    );
+  });
+
+  it("cmp_pushbutton derives its on/off resistance from pressed", () => {
+    const button = byId("cmp_pushbutton");
+    expect(button.category).toBe("passive");
+    expect(button.pins.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(button.parameters).toEqual([{ name: "pressed", default: 0, type: "number" }]);
+    expect(button.simModel?.derivedParams).toEqual({
+      ronoff: "0.001 + (1 - pressed) * 1e12",
+    });
+    expect(button.simModel?.template).toBe("R{ref} {p1} {p2} {ronoff}");
+  });
+
+  it("cmp_switch_spst derives its on/off resistance from closed", () => {
+    const spst = byId("cmp_switch_spst");
+    expect(spst.category).toBe("passive");
+    expect(spst.pins.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(spst.parameters).toEqual([{ name: "closed", default: 0, type: "number" }]);
+    expect(spst.simModel?.derivedParams).toEqual({
+      ronoff: "0.001 + (1 - closed) * 1e12",
+    });
+    expect(spst.simModel?.template).toBe("R{ref} {p1} {p2} {ronoff}");
+  });
+
+  it("cmp_dc_motor models the winding resistance and declares vnominal", () => {
+    const motor = byId("cmp_dc_motor");
+    expect(motor.category).toBe("other");
+    expect(motor.pins.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(motor.parameters).toEqual([
+      { name: "rwinding", unit: "ohm", default: 24, type: "number" },
+      { name: "vnominal", unit: "volt", default: 6, type: "number" },
+    ]);
+    expect(motor.simModel?.template).toBe("R{ref} {p1} {p2} {rwinding}");
+  });
+
+  it("cmp_buzzer is a 42-ohm resistive load", () => {
+    const buzzer = byId("cmp_buzzer");
+    expect(buzzer.category).toBe("other");
+    expect(buzzer.pins.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(buzzer.parameters).toEqual([
+      { name: "r", unit: "ohm", default: 42, type: "number" },
+    ]);
+    expect(buzzer.simModel?.template).toBe("R{ref} {p1} {p2} {r}");
+  });
+
+  it("cmp_lamp is a 60-ohm resistive load", () => {
+    const lamp = byId("cmp_lamp");
+    expect(lamp.category).toBe("other");
+    expect(lamp.pins.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(lamp.parameters).toEqual([
+      { name: "r", unit: "ohm", default: 60, type: "number" },
+    ]);
+    expect(lamp.simModel?.template).toBe("R{ref} {p1} {p2} {r}");
+  });
+
+  it("cmp_rgb_led expands to three diode cards sharing one model card", () => {
+    const rgb = byId("cmp_rgb_led");
+    expect(rgb.category).toBe("active");
+    expect(rgb.pins.map((p) => p.id)).toEqual(["r", "g", "b", "com"]);
+    expect(rgb.parameters).toEqual([]);
+    expect(rgb.simModel?.template).toBe(
+      "D{ref}R {r} {com} DLEDRGB\nD{ref}G {g} {com} DLEDRGB\nD{ref}B {b} {com} DLEDRGB",
+    );
+    expect(rgb.simModel?.modelCard).toBe(".model DLEDRGB D(IS=1e-14 N=2.0)");
+  });
+
+  it("cmp_ldr interpolates its resistance between rdark and rlight by lux", () => {
+    const ldr = byId("cmp_ldr");
+    expect(ldr.category).toBe("passive");
+    expect(ldr.pins.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(ldr.parameters).toEqual([
+      { name: "rdark", unit: "ohm", default: 100000, type: "number" },
+      { name: "rlight", unit: "ohm", default: 1000, type: "number" },
+      { name: "lux", default: 0.5, type: "number" },
+    ]);
+    expect(ldr.simModel?.derivedParams).toEqual({
+      r: "rdark + (rlight - rdark) * lux",
+    });
+    expect(ldr.simModel?.template).toBe("R{ref} {p1} {p2} {r}");
   });
 });
