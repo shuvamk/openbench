@@ -347,6 +347,151 @@ export const ldr: Component = {
   provenance: PROVENANCE,
 };
 
+/**
+ * Fundamental parts (batch 3): the passives/actives that were missing from the
+ * Phase 1 + issue #22 sets. Inductor completes the R/C/L trio (enables RL/RLC),
+ * the SIN source unlocks AC/audio transient demos, zener/schottky diodes and the
+ * PNP/NMOS devices round out the semiconductor palette. All simulate through the
+ * standard template expansion; none need special compiler handling.
+ */
+
+/** Completes the R/C/L passive trio — enables RL and RLC transient demos. */
+export const inductorGeneric: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_inductor_generic",
+  name: "Inductor",
+  category: "passive",
+  pins: [
+    { id: "p1", name: "1", electricalType: "passive" },
+    { id: "p2", name: "2", electricalType: "passive" },
+  ],
+  parameters: [{ name: "inductance", unit: "henry", default: 1e-3, type: "number" }],
+  simModel: {
+    engine: "ngspice",
+    template: "L{ref} {p1} {p2} {inductance}",
+  },
+  footprint: { kicadRef: "Inductor_SMD:L_0603_1608Metric" },
+  provenance: PROVENANCE,
+};
+
+/**
+ * SPICE SIN source. Defaults give a 0-centred 5V, 1kHz sine with no delay or
+ * damping — an instant AC stimulus for the transient sim and the live view
+ * (LEDs/motors/lamps pulse with it). SIN args: offset, amplitude, freq, delay,
+ * damping factor.
+ */
+export const vsourceSin: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_vsource_sin",
+  name: "Sine Voltage Source",
+  category: "power",
+  pins: [
+    { id: "pos", name: "+", electricalType: "passive" },
+    { id: "neg", name: "-", electricalType: "passive" },
+  ],
+  parameters: [
+    { name: "voffset", unit: "volt", default: 0, type: "number" },
+    { name: "vamplitude", unit: "volt", default: 5, type: "number" },
+    { name: "frequency", unit: "hertz", default: 1000, type: "number" },
+    { name: "tdelay", unit: "second", default: 0, type: "number" },
+    { name: "damping", unit: "hertz", default: 0, type: "number" },
+  ],
+  simModel: {
+    engine: "ngspice",
+    template:
+      "V{ref} {pos} {neg} SIN({voffset} {vamplitude} {frequency} {tdelay} {damping})",
+  },
+  provenance: PROVENANCE,
+};
+
+/** Reverse-breakdown regulator: BV=5.1V clamps in reverse (D model with BV). */
+export const zenerDiode: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_zener_diode",
+  name: "Zener Diode (5.1V)",
+  category: "active",
+  pins: [
+    { id: "a", name: "A", electricalType: "passive" },
+    { id: "k", name: "K", electricalType: "passive" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "D{ref} {a} {k} DZENER",
+    modelCard: ".model DZENER D(IS=1e-14 N=1.5 BV=5.1)",
+  },
+  provenance: PROVENANCE,
+};
+
+/** Low forward-drop rectifier (BAT54-like): high IS + small series RS. */
+export const schottkyDiode: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_schottky_diode",
+  name: "Schottky Diode (BAT54)",
+  category: "active",
+  pins: [
+    { id: "a", name: "A", electricalType: "passive" },
+    { id: "k", name: "K", electricalType: "passive" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "D{ref} {a} {k} DSCHOTTKY",
+    modelCard: ".model DSCHOTTKY D(IS=1e-7 N=1.0 RS=0.05)",
+  },
+  provenance: PROVENANCE,
+};
+
+/** Complement to the 2N2222 NPN — same c/b/e ordering, PNP model. */
+export const pnp2n3906: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_pnp_2n3906",
+  name: "PNP Transistor (2N3906)",
+  category: "active",
+  pins: [
+    { id: "c", name: "C", electricalType: "passive" },
+    { id: "b", name: "B", electricalType: "passive" },
+    { id: "e", name: "E", electricalType: "passive" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "Q{ref} {c} {b} {e} Q2N3906",
+    modelCard: ".model Q2N3906 PNP(IS=1e-14 BF=180)",
+  },
+  provenance: PROVENANCE,
+};
+
+/**
+ * N-channel enhancement MOSFET (2N7000-like). The 3-pin schematic part (d/g/s)
+ * ties the SPICE bulk to the source, so the template repeats {s} for both the
+ * source and body nodes: M{ref} d g s s MODEL.
+ */
+export const nmos2n7000: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_nmos_2n7000",
+  name: "N-Channel MOSFET (2N7000)",
+  category: "active",
+  pins: [
+    { id: "d", name: "D", electricalType: "passive" },
+    { id: "g", name: "G", electricalType: "passive" },
+    { id: "s", name: "S", electricalType: "passive" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "M{ref} {d} {g} {s} {s} MOSN",
+    modelCard: ".model MOSN NMOS(VTO=2.1 KP=0.05)",
+  },
+  provenance: PROVENANCE,
+};
+
 /** Names the ground net only — no simModel; SPICE node 0 comes from the compiler. */
 export const ground: Component = {
   irVersion: IR_VERSION,

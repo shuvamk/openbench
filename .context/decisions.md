@@ -172,3 +172,23 @@ approximations only map already-simulated voltages onto human-legible animation.
 Documented in `apps/web/lib/live/derive.ts`.
 **Consequences:** Firmware-in-the-loop (GPIO events) and current probes can later
 replace the client-side estimates without touching the IR.
+
+## ADR-0014 — Batch 3 fundamental parts land without a `status:ready` issue (2026-07-03)
+
+**Decision:** Extend the curated registry from 17 to 23 parts — inductor, SIN voltage
+source, zener + schottky diodes, PNP transistor, N-channel MOSFET — as one TDD slice,
+without first filing a GitHub issue. Each part is fully integrated across all five
+touch-points (registry IR + index, editor `SymbolKind`/geometry, symbol glyph, live
+`liveKind`) and covered by the iterating registry/symbol/netlist tests plus per-part
+assertions.
+**Rationale:** The full-autonomy rule says to make the reasonable call and log the
+rationale rather than block; the standing direction is "keep adding components." These
+six fill real gaps (no L meant no RLC; no AC source meant no audio/AC transient demos;
+the semiconductor palette lacked reverse-clamp, low-drop, PNP, and MOSFET devices). All
+expand through the existing template path — no IR or compiler change, so no `irVersion`
+bump and zero migration risk.
+**Consequences:** New SPICE prefix `L` was added to the mutations placement regex test.
+The MOSFET and DC motor share the `M` instance-prefix space (both derive `M` from their
+template/id); acceptable since instance ids stay unique per schematic. Op-amps and other
+`.subckt`-based parts remain deferred until the netlist compiler grows subcircuit support
+(open question Q3).

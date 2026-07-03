@@ -157,6 +157,72 @@ function DiodeGlyph() {
   );
 }
 
+function InductorGlyph() {
+  return (
+    <g>
+      <line x1={-30} y1={0} x2={-18} y2={0} {...strokeProps} />
+      <line x1={18} y1={0} x2={30} y2={0} {...strokeProps} />
+      {/* four semicircular humps */}
+      <path
+        d="M -18 0 a 4.5 4.5 0 0 1 9 0 a 4.5 4.5 0 0 1 9 0 a 4.5 4.5 0 0 1 9 0 a 4.5 4.5 0 0 1 9 0"
+        {...strokeProps}
+      />
+    </g>
+  );
+}
+
+function AcSourceGlyph() {
+  return (
+    <g>
+      <line x1={0} y1={-30} x2={0} y2={-14} {...strokeProps} />
+      <line x1={0} y1={14} x2={0} y2={30} {...strokeProps} />
+      <circle cx={0} cy={0} r={14} fill={BODY} stroke={STROKE} strokeWidth={1.5} />
+      {/* one sine period across the body */}
+      <path d="M -9 0 C -6 -9 -3 -9 0 0 C 3 9 6 9 9 0" {...strokeProps} />
+    </g>
+  );
+}
+
+function DiodeBody() {
+  return (
+    <polygon
+      points="-8,-9 -8,9 8,0"
+      fill={BODY}
+      stroke={STROKE}
+      strokeWidth={1.5}
+      strokeLinejoin="round"
+    />
+  );
+}
+
+function ZenerGlyph() {
+  return (
+    <g>
+      <line x1={-20} y1={0} x2={-8} y2={0} {...strokeProps} />
+      <line x1={8} y1={0} x2={20} y2={0} {...strokeProps} />
+      <DiodeBody />
+      {/* cathode bar with the bent Z flags */}
+      <line x1={8} y1={-9} x2={8} y2={9} {...strokeProps} strokeWidth={2} />
+      <line x1={8} y1={-9} x2={4} y2={-9} {...strokeProps} />
+      <line x1={8} y1={9} x2={12} y2={9} {...strokeProps} />
+    </g>
+  );
+}
+
+function SchottkyGlyph() {
+  return (
+    <g>
+      <line x1={-20} y1={0} x2={-8} y2={0} {...strokeProps} />
+      <line x1={8} y1={0} x2={20} y2={0} {...strokeProps} />
+      <DiodeBody />
+      {/* cathode bar with square [ hooks at both ends */}
+      <line x1={8} y1={-9} x2={8} y2={9} {...strokeProps} strokeWidth={2} />
+      <polyline points="4,-6 8,-6 8,-9 4,-9" {...strokeProps} strokeLinejoin="round" />
+      <polyline points="12,6 8,6 8,9 12,9" {...strokeProps} strokeLinejoin="round" />
+    </g>
+  );
+}
+
 function NpnGlyph() {
   return (
     <g>
@@ -169,6 +235,44 @@ function NpnGlyph() {
       <line x1={8} y1={14} x2={14} y2={24} {...strokeProps} />
       {/* emitter arrow */}
       <polygon points="8,14 2,12 5,7" fill={STROKE} stroke="none" />
+    </g>
+  );
+}
+
+function PnpGlyph() {
+  return (
+    <g>
+      <circle cx={0} cy={0} r={16} fill={BODY} stroke={STROKE} strokeWidth={1.5} />
+      <line x1={-22} y1={0} x2={-6} y2={0} {...strokeProps} />
+      <line x1={-6} y1={-10} x2={-6} y2={10} {...strokeProps} strokeWidth={2} />
+      <line x1={-6} y1={-4} x2={8} y2={-14} {...strokeProps} />
+      <line x1={8} y1={-14} x2={14} y2={-24} {...strokeProps} />
+      <line x1={-6} y1={4} x2={8} y2={14} {...strokeProps} />
+      <line x1={8} y1={14} x2={14} y2={24} {...strokeProps} />
+      {/* emitter arrow points INTO the base (PNP) */}
+      <polygon points="-6,4 4,4 0,11" fill={STROKE} stroke="none" />
+    </g>
+  );
+}
+
+function NmosGlyph() {
+  return (
+    <g>
+      {/* gate */}
+      <line x1={-22} y1={0} x2={-14} y2={0} {...strokeProps} />
+      <line x1={-14} y1={-12} x2={-14} y2={12} {...strokeProps} strokeWidth={1.5} />
+      {/* broken channel (enhancement mode) */}
+      <line x1={-8} y1={-12} x2={-8} y2={-4} {...strokeProps} strokeWidth={2} />
+      <line x1={-8} y1={-3} x2={-8} y2={3} {...strokeProps} strokeWidth={2} />
+      <line x1={-8} y1={4} x2={-8} y2={12} {...strokeProps} strokeWidth={2} />
+      {/* drain (top-right) */}
+      <line x1={-8} y1={-8} x2={14} y2={-8} {...strokeProps} />
+      <line x1={14} y1={-8} x2={14} y2={-24} {...strokeProps} />
+      {/* source (bottom-right) */}
+      <line x1={-8} y1={8} x2={14} y2={8} {...strokeProps} />
+      <line x1={14} y1={8} x2={14} y2={24} {...strokeProps} />
+      {/* N-channel arrow points toward the channel */}
+      <polygon points="-8,8 2,5 2,11" fill={STROKE} stroke="none" />
     </g>
   );
 }
@@ -295,8 +399,18 @@ export function SymbolGlyph({ component }: { component: Component }) {
       return <LedGlyph />;
     case "diode":
       return <DiodeGlyph />;
+    case "zener":
+      return <ZenerGlyph />;
+    case "schottky":
+      return <SchottkyGlyph />;
+    case "inductor":
+      return <InductorGlyph />;
     case "npn":
       return <NpnGlyph />;
+    case "pnp":
+      return <PnpGlyph />;
+    case "nmos":
+      return <NmosGlyph />;
     case "potentiometer":
       return <PotentiometerGlyph />;
     case "pushbutton":
@@ -315,6 +429,8 @@ export function SymbolGlyph({ component }: { component: Component }) {
       return <LdrGlyph />;
     case "vsource":
       return <VsourceGlyph />;
+    case "acsource":
+      return <AcSourceGlyph />;
     case "ground":
       return <GroundGlyph />;
     default:
