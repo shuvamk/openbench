@@ -3,13 +3,13 @@ import {
   validateSchematic,
   type ValidationError,
 } from "@openbench/ir-schema";
-import { createFromTemplate } from "../templates";
-import { DEMO_PROJECT_ID, resolveProjectId } from "./alias";
+import { createFromTemplate, type TemplateKind } from "../templates";
+import { DEMO_PROJECT_ID, PLAYGROUND_PROJECT_ID, resolveProjectId } from "./alias";
 import { IndexedDbProjectStore } from "./indexeddb";
 import { MemoryProjectStore, createMemoryProjectStore } from "./memory";
 import type { ProjectBundle, ProjectStore } from "./types";
 
-export { DEMO_PROJECT_ID, resolveProjectId } from "./alias";
+export { DEMO_PROJECT_ID, PLAYGROUND_PROJECT_ID, resolveProjectId } from "./alias";
 export { IndexedDbProjectStore } from "./indexeddb";
 export { MemoryProjectStore, createMemoryProjectStore } from "./memory";
 export type { ProjectBundle, ProjectStore } from "./types";
@@ -31,20 +31,39 @@ export function getProjectStore(): ProjectStore {
   return memorySingleton;
 }
 
-/**
- * First-run seeding: creates the "demo" project (literal id `proj_demo`,
- * also reachable via the `demo` alias) from the RC low-pass template.
- * No-op when the demo project already exists.
- */
-export async function ensureSeeded(store: ProjectStore): Promise<void> {
-  const existing = await store.load(DEMO_PROJECT_ID);
+/** Seed one project under a fixed id; no-op when that id already exists. */
+async function seedIfMissing(
+  store: ProjectStore,
+  projectId: string,
+  kind: TemplateKind,
+  name: string,
+): Promise<void> {
+  const existing = await store.load(projectId);
   if (existing !== undefined) {
     return;
   }
-  const bundle = createFromTemplate("rc-lowpass", "RC low-pass demo");
-  bundle.project.id = DEMO_PROJECT_ID;
-  bundle.schematic.projectId = DEMO_PROJECT_ID;
+  const bundle = createFromTemplate(kind, name);
+  bundle.project.id = projectId;
+  bundle.schematic.projectId = projectId;
   await store.save(bundle);
+}
+
+/**
+ * First-run seeding: creates the "demo" project (literal id `proj_demo`,
+ * also reachable via the `demo` alias) from the RC low-pass template, and
+ * the "playground" project (literal id `proj_playground`, alias
+ * `playground`, issue #26) from the interactive playground template. Each
+ * seed is independent, so stores created before the playground existed get
+ * it backfilled without touching their demo project.
+ */
+export async function ensureSeeded(store: ProjectStore): Promise<void> {
+  await seedIfMissing(store, DEMO_PROJECT_ID, "rc-lowpass", "RC low-pass demo");
+  await seedIfMissing(
+    store,
+    PLAYGROUND_PROJECT_ID,
+    "playground",
+    "Interactive playground",
+  );
 }
 
 /** Serialize a bundle for `.openbench.json` export (stable, human-diffable). */
