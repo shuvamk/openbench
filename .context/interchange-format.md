@@ -45,9 +45,17 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
   ],
   "simModel": {
     "engine": "ngspice",
-    "template": "R{ref} {p1} {p2} {resistance}"
+    "template": "R{ref} {p1} {p2} {resistance}",
     // optional: "modelCard": ".model DLED D(IS=1e-14)" — SPICE .model line for
     // components whose template references a named model (additive, Phase 1)
+    // optional: "derivedParams": { "ronoff": "0.001 + (1 - pressed) * 1e12" } —
+    // arithmetic expressions over declared parameter names (numeric literals
+    // incl. 1e12 style, + - * / and parentheses; nothing else — no function
+    // calls, no ternaries). Keys must not collide with parameter names.
+    // Template tokens may reference {ref}, pin ids, parameter names, and
+    // derivedParams keys. Templates MAY contain newlines: the netlist compiler
+    // emits one SPICE card per non-empty trimmed line; use {ref}-suffixed
+    // device names (e.g. "D{ref}R") to keep multi-device instances unique.
   },
   "footprint": { "kicadRef": "Resistor_SMD:R_0603_1608Metric" },
   "provenance": { "source": "registry", "addedBy": "registry-curator", "at": "<iso8601>" }
@@ -184,3 +192,20 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
   duplicate netIds, and connections/layout keys referencing undeclared
   instanceIds; `simulationRun.results.signals[].samples` must be a URL or
   `data:` URI; `netlist.derivedBy` is required.
+- **2026-07-02** — issue #21, two ADDITIVE, patch-level capabilities (no
+  `irVersion` bump; ir-schema-guard: optional additions are non-breaking):
+  1. `component.simModel.derivedParams?: Record<string,string>` — arithmetic
+  expressions over declared parameter names. Validation tokenizes each
+  expression: identifiers must be declared parameter names; only numeric
+  literals (incl. `1e12` style), `+ - * /`, parentheses, and whitespace are
+  allowed (error path `simModel.derivedParams.<key>`); keys colliding with a
+  parameter name are rejected. Template tokens may now reference pins,
+  parameters, `ref`, OR derivedParams keys. The netlist compiler evaluates
+  the expressions with a safe recursive-descent evaluator
+  (`packages/netlist-compiler/src/expr.ts` — never `eval`), resolving
+  overrides over defaults first; derived values shadow nothing.
+  2. Multi-line `simModel.template` strings are explicitly legal: the netlist
+  compiler splits the expanded template on newlines, trims each line, drops
+  empties, and emits one `elements[]` entry per line (one SPICE card per
+  line). `{ref}`-suffixed device names (e.g. `D{ref}R`) keep multi-device
+  instances unique. `modelCard` dedup by content is unchanged.

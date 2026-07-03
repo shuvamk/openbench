@@ -31,10 +31,46 @@ const parameterSchema = z.object({
 
 const simModelSchema = z.object({
   engine: z.enum(["ngspice"]),
+  /** May span multiple lines: the netlist compiler emits one SPICE card per line (issue #21). */
   template: z.string().min(1),
   /** Optional SPICE `.model` card emitted alongside the template (additive, issue #5). */
   modelCard: z.string().min(1).optional(),
+  /**
+   * Arithmetic expressions over declared parameter names (additive, issue #21).
+   * Allowed: numeric literals (incl. 1e12 style), declared parameter names,
+   * `+ - * /` and parentheses — nothing else. Template tokens may reference keys.
+   */
+  derivedParams: z.record(z.string()).optional(),
 });
+
+/** One lexical token of a derivedParams expression. */
+const EXPRESSION_TOKEN =
+  /(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-z_][A-Za-z0-9_]*|[+\-*/()]|\s+/y;
+
+/**
+ * Tokenize a derivedParams expression and report the first structural problem:
+ * an identifier that is not a declared parameter name, or any character outside
+ * numbers / identifiers / `+ - * /` / parentheses / whitespace.
+ */
+function findExpressionProblem(
+  expression: string,
+  declaredParameters: ReadonlySet<string>,
+): string | undefined {
+  let position = 0;
+  while (position < expression.length) {
+    EXPRESSION_TOKEN.lastIndex = position;
+    const match = EXPRESSION_TOKEN.exec(expression);
+    if (match === null) {
+      return `invalid character "${expression[position]}" (allowed: numbers, declared parameter names, + - * / and parentheses)`;
+    }
+    const token = match[0];
+    if (/^[A-Za-z_]/.test(token) && !declaredParameters.has(token)) {
+      return `references undeclared parameter "${token}"`;
+    }
+    position = EXPRESSION_TOKEN.lastIndex;
+  }
+  return undefined;
+}
 
 /**
  * Base object shape without cross-field refinements — the discriminated union
@@ -71,11 +107,38 @@ export function refineComponent(component: Component, ctx: z.RefinementCtx): voi
   });
 
   if (component.simModel) {
-    // Templates may reference {ref}, declared pin ids, and declared parameter names.
+    const parameterNames = new Set(component.parameters.map((p) => p.name));
+    const derivedParams = component.simModel.derivedParams ?? {};
+
+    // derivedParams shadow nothing: a key colliding with a parameter name is an
+    // error, and each expression may reference only declared parameter names,
+    // numeric literals, + - * / and parentheses (issue #21).
+    for (const [key, expression] of Object.entries(derivedParams)) {
+      if (parameterNames.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["simModel", "derivedParams", key],
+          message: `derivedParams key "${key}" collides with a declared parameter name`,
+        });
+        continue;
+      }
+      const problem = findExpressionProblem(expression, parameterNames);
+      if (problem !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["simModel", "derivedParams", key],
+          message: `derivedParams expression ${problem}`,
+        });
+      }
+    }
+
+    // Templates may reference {ref}, declared pin ids, declared parameter
+    // names, and derivedParams keys (multi-line templates are legal).
     const declared = new Set([
       "ref",
       ...component.pins.map((p) => p.id),
-      ...component.parameters.map((p) => p.name),
+      ...parameterNames,
+      ...Object.keys(derivedParams),
     ]);
     for (const match of component.simModel.template.matchAll(/\{([^{}]+)\}/g)) {
       const token = match[1]!;
@@ -83,7 +146,7 @@ export function refineComponent(component: Component, ctx: z.RefinementCtx): voi
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["simModel", "template"],
-          message: `template references undeclared "${token}" (declared: ref, pin ids, parameter names)`,
+          message: `template references undeclared "${token}" (declared: ref, pin ids, parameter names, derivedParams keys)`,
         });
       }
     }

@@ -12,3 +12,4 @@ export {
   type CompileNetlistOptions,
   type CompileNetlistResult,
 } from "./compile";
+export { evaluateExpression, type EvaluateResult } from "./expr";

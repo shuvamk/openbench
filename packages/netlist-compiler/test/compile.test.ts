@@ -115,6 +115,75 @@ const ledGreen: Component = {
   provenance: fixtureProvenance,
 };
 
+/** Issue #21 — derivedParams: on/off resistance computed from `pressed`. */
+const pushbutton: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_pushbutton",
+  name: "Pushbutton",
+  category: "passive",
+  pins: [
+    { id: "p1", name: "1", electricalType: "passive" },
+    { id: "p2", name: "2", electricalType: "passive" },
+  ],
+  parameters: [{ name: "pressed", default: 0, type: "number" }],
+  simModel: {
+    engine: "ngspice",
+    template: "R{ref} {p1} {p2} {ronoff}",
+    derivedParams: { ronoff: "0.001 + (1 - pressed) * 1e12" },
+  },
+  provenance: fixtureProvenance,
+};
+
+/** Issue #21 — division + parens in a derived expression (parallel resistors). */
+const parallelPair: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_parallel_pair",
+  name: "Parallel resistor pair",
+  category: "passive",
+  pins: [
+    { id: "p1", name: "1", electricalType: "passive" },
+    { id: "p2", name: "2", electricalType: "passive" },
+  ],
+  parameters: [
+    { name: "r1", unit: "ohm", default: 1000, type: "number" },
+    { name: "r2", unit: "ohm", default: 1000, type: "number" },
+  ],
+  simModel: {
+    engine: "ngspice",
+    template: "R{ref} {p1} {p2} {req}",
+    derivedParams: { req: "(r1 * r2) / (r1 + r2)" },
+  },
+  provenance: fixtureProvenance,
+};
+
+/**
+ * Issue #21 — multi-line template: three D-cards ({ref}-suffixed names keep
+ * multi-device instances unique) plus a shared modelCard. The modelCard
+ * content matches cmp_led_red/cmp_led_green to exercise cross-component dedup.
+ */
+const ledRgb: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_led_rgb",
+  name: "RGB LED",
+  category: "active",
+  pins: [
+    { id: "r", name: "R", electricalType: "passive" },
+    { id: "g", name: "G", electricalType: "passive" },
+    { id: "b", name: "B", electricalType: "passive" },
+    { id: "k", name: "K", electricalType: "passive" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "D{ref}R {r} {k} DLED\nD{ref}G {g} {k} DLED\nD{ref}B {b} {k} DLED",
+    modelCard: ".model DLED D(IS=1e-14)",
+  },
+  provenance: fixtureProvenance,
+};
+
 const esp32: Component = {
   irVersion: IR_VERSION,
   kind: "component",
@@ -131,7 +200,9 @@ const esp32: Component = {
 };
 
 const registry = new Map<string, Component>(
-  [resistor, capacitor, vsource, ground, ledRed, ledGreen, esp32].map((c) => [c.id, c]),
+  [resistor, capacitor, vsource, ground, ledRed, ledGreen, pushbutton, parallelPair, ledRgb, esp32].map(
+    (c) => [c.id, c],
+  ),
 );
 const resolve = (id: string): Component | undefined => registry.get(id);
 
@@ -609,5 +680,204 @@ describe("compileNetlist — template expansion errors", () => {
     expect(passing.ok).toBe(true);
     if (!passing.ok) return;
     expect(passing.netlist.elements).toEqual([{ instanceId: "W1", spiceCard: "W1 1 0 42" }]);
+  });
+});
+
+describe("compileNetlist — derivedParams (issue #21)", () => {
+  const buttonSchematic = (parameterOverrides?: Record<string, number>) =>
+    makeSchematic({
+      id: "sch_button",
+      instances: [
+        { instanceId: "SW1", componentId: "cmp_pushbutton", parameterOverrides },
+        { instanceId: "GND1", componentId: "cmp_ground" },
+      ],
+      nets: [
+        { netId: "net_a", name: "A", connections: [{ instanceId: "SW1", pinId: "p1" }] },
+        {
+          netId: "net_gnd",
+          name: "GND",
+          connections: [
+            { instanceId: "SW1", pinId: "p2" },
+            { instanceId: "GND1", pinId: "p1" },
+          ],
+        },
+      ],
+    });
+
+  it("pushbutton pressed=1 evaluates ronoff to 0.001", () => {
+    const result = compileNetlist(buttonSchematic({ pressed: 1 }), resolve, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "SW1", spiceCard: "RSW1 1 0 0.001" },
+    ]);
+    expect(validateNetlist(result.netlist).valid).toBe(true);
+  });
+
+  it("pushbutton pressed=0 (default) evaluates ronoff to 1e12 + 0.001", () => {
+    const result = compileNetlist(buttonSchematic(), resolve, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "SW1", spiceCard: `RSW1 1 0 ${1e12 + 0.001}` },
+    ]);
+  });
+
+  it("evaluates division and parentheses over parameter overrides", () => {
+    const schematic = makeSchematic({
+      id: "sch_parallel",
+      instances: [
+        {
+          instanceId: "RP1",
+          componentId: "cmp_parallel_pair",
+          parameterOverrides: { r1: 300, r2: 600 },
+        },
+      ],
+      nets: [
+        { netId: "net_a", name: "A", connections: [{ instanceId: "RP1", pinId: "p1" }] },
+        { netId: "net_gnd", name: "GND", connections: [{ instanceId: "RP1", pinId: "p2" }] },
+      ],
+    });
+    const result = compileNetlist(schematic, resolve, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "RP1", spiceCard: "RRP1 1 0 200" },
+    ]);
+  });
+
+  it.each([
+    ["JS member access", "process.exit(1)"],
+    ["statement separators", "1; 2"],
+    ["function calls on unknown identifiers", "alert(1)"],
+    ["call syntax on a declared parameter", "pressed(1)"],
+    ["template-literal injection", "`${pressed}`"],
+  ])("rejects malicious expressions structurally (%s), never evaluating them as JS", (_label, expression) => {
+    // Bypass ir-schema validation on purpose: the compiler must not trust its inputs.
+    const hostile: Component = structuredClone(pushbutton);
+    hostile.simModel!.derivedParams = { ronoff: expression };
+    const resolveHostile = (id: string) => (id === "cmp_pushbutton" ? hostile : resolve(id));
+    const result = compileNetlist(buttonSchematic(), resolveHostile, { now: NOW });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]?.path).toBe("instances.0.derivedParams.ronoff");
+  });
+
+  it("reports a non-numeric parameter referenced by a derived expression", () => {
+    const stringy: Component = structuredClone(pushbutton);
+    stringy.parameters = [{ name: "pressed", default: "yes", type: "string" }];
+    const resolveStringy = (id: string) => (id === "cmp_pushbutton" ? stringy : resolve(id));
+    const result = compileNetlist(buttonSchematic(), resolveStringy, { now: NOW });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]?.path).toBe("instances.0.derivedParams.ronoff");
+    expect(result.errors[0]?.message).toContain("pressed");
+  });
+});
+
+describe("compileNetlist — multi-line templates (issue #21)", () => {
+  const rgbNets = (suffix: string, instanceId: string) => [
+    { netId: `net_r${suffix}`, connections: [{ instanceId, pinId: "r" }] },
+    { netId: `net_g${suffix}`, connections: [{ instanceId, pinId: "g" }] },
+    { netId: `net_b${suffix}`, connections: [{ instanceId, pinId: "b" }] },
+  ];
+
+  it("expands each template line into its own element entry", () => {
+    const schematic = makeSchematic({
+      id: "sch_rgb",
+      instances: [
+        { instanceId: "D1", componentId: "cmp_led_rgb" },
+        { instanceId: "GND1", componentId: "cmp_ground" },
+      ],
+      nets: [
+        ...rgbNets("1", "D1"),
+        {
+          netId: "net_gnd",
+          name: "GND",
+          connections: [
+            { instanceId: "D1", pinId: "k" },
+            { instanceId: "GND1", pinId: "p1" },
+          ],
+        },
+      ],
+    });
+    const result = compileNetlist(schematic, resolve, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "D1", spiceCard: "DD1R 1 0 DLED" },
+      { instanceId: "D1", spiceCard: "DD1G 2 0 DLED" },
+      { instanceId: "D1", spiceCard: "DD1B 3 0 DLED" },
+      { instanceId: "cmp_led_rgb", spiceCard: ".model DLED D(IS=1e-14)" },
+    ]);
+    expect(validateNetlist(result.netlist).valid).toBe(true);
+  });
+
+  it("trims lines and drops blank ones (blank interior lines, trailing newline)", () => {
+    const spaced: Component = structuredClone(ledRgb);
+    spaced.simModel!.template =
+      "D{ref}R {r} {k} DLED\n\n  D{ref}G {g} {k} DLED  \nD{ref}B {b} {k} DLED\n";
+    const resolveSpaced = (id: string) => (id === "cmp_led_rgb" ? spaced : resolve(id));
+    const schematic = makeSchematic({
+      id: "sch_rgb_spaced",
+      instances: [{ instanceId: "D1", componentId: "cmp_led_rgb" }],
+      nets: [
+        ...rgbNets("1", "D1"),
+        { netId: "net_gnd", name: "GND", connections: [{ instanceId: "D1", pinId: "k" }] },
+      ],
+    });
+    const result = compileNetlist(schematic, resolveSpaced, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.netlist.elements.map((e) => e.spiceCard)).toEqual([
+      "DD1R 1 0 DLED",
+      "DD1G 2 0 DLED",
+      "DD1B 3 0 DLED",
+      ".model DLED D(IS=1e-14)",
+    ]);
+  });
+
+  it("two RGB instances plus a red LED share one .model card (dedup unchanged)", () => {
+    const schematic = makeSchematic({
+      id: "sch_rgb_multi",
+      instances: [
+        { instanceId: "D1", componentId: "cmp_led_rgb" },
+        { instanceId: "D2", componentId: "cmp_led_rgb" },
+        { instanceId: "D3", componentId: "cmp_led_red" },
+      ],
+      nets: [
+        ...rgbNets("1", "D1"),
+        ...rgbNets("2", "D2"),
+        { netId: "net_a3", connections: [{ instanceId: "D3", pinId: "a" }] },
+        {
+          netId: "net_gnd",
+          name: "GND",
+          connections: [
+            { instanceId: "D1", pinId: "k" },
+            { instanceId: "D2", pinId: "k" },
+            { instanceId: "D3", pinId: "k" },
+          ],
+        },
+      ],
+    });
+    const result = compileNetlist(schematic, resolve, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const deviceCards = result.netlist.elements.filter((e) => !e.spiceCard.startsWith(".model"));
+    const modelCards = result.netlist.elements.filter((e) => e.spiceCard.startsWith(".model"));
+    expect(deviceCards.map((e) => e.spiceCard)).toEqual([
+      "DD1R 1 0 DLED",
+      "DD1G 2 0 DLED",
+      "DD1B 3 0 DLED",
+      "DD2R 4 0 DLED",
+      "DD2G 5 0 DLED",
+      "DD2B 6 0 DLED",
+      "D3 7 0 DLED",
+    ]);
+    expect(modelCards).toEqual([
+      { instanceId: "cmp_led_rgb", spiceCard: ".model DLED D(IS=1e-14)" },
+    ]);
+    expect(validateNetlist(result.netlist).valid).toBe(true);
   });
 });
