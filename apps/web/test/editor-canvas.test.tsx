@@ -200,6 +200,25 @@ describe("Palette", () => {
     expect(useEditorStore.getState().tool).toBe("place");
     expect(useEditorStore.getState().placingComponentId).toBe("cmp_resistor_generic");
   });
+
+  it("filters the parts list as the user types in the search box", () => {
+    render(withTheme(<Palette />));
+    const search = screen.getByPlaceholderText(/search parts/i);
+    fireEvent.change(search, { target: { value: "inductor" } });
+    // matching part stays…
+    expect(screen.getAllByText("Inductor").length).toBeGreaterThan(0);
+    // …non-matching parts are filtered out
+    expect(screen.queryByText("Capacitor")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Ground$/ })).toBeNull();
+  });
+
+  it("shows an empty state when nothing matches the query", () => {
+    render(withTheme(<Palette />));
+    const search = screen.getByPlaceholderText(/search parts/i);
+    fireEvent.change(search, { target: { value: "zzzznotathing" } });
+    expect(screen.getByText(/No parts match/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Resistor/ })).toBeNull();
+  });
 });
 
 describe("Inspector", () => {
