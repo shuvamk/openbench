@@ -12,7 +12,8 @@ export type TemplateKind =
   | "rc-lowpass"
   | "esp32-blink"
   | "playground"
-  | "half-wave-rectifier";
+  | "half-wave-rectifier"
+  | "rlc-ringing";
 
 const stamp = (): Provenance => ({
   source: "frontend",
@@ -298,12 +299,85 @@ const halfWaveRectifierContent = (): SchematicContent => ({
   },
 });
 
+/**
+ * Series RLC step response — the textbook demo for the batch-3 inductor.
+ * V1 (0→5V pulse) → R1 (10Ω) → L1 (1mH) → C1 (1µF) → GND, output taken across
+ * the cap. Underdamped (Q≈3, f₀≈5kHz), so each pulse edge sets VOUT ringing and
+ * decaying — the classic damped sinusoid you can't get without an inductor.
+ */
+const rlcRingingContent = (): SchematicContent => ({
+  instances: [
+    { instanceId: "V1", componentId: "cmp_vsource_pulse" },
+    {
+      instanceId: "R1",
+      componentId: "cmp_resistor_generic",
+      parameterOverrides: { resistance: 10 },
+    },
+    {
+      instanceId: "L1",
+      componentId: "cmp_inductor_generic",
+      parameterOverrides: { inductance: 1e-3 },
+    },
+    {
+      instanceId: "C1",
+      componentId: "cmp_capacitor_generic",
+      parameterOverrides: { capacitance: 1e-6 },
+    },
+    { instanceId: "GND1", componentId: "cmp_ground" },
+  ],
+  nets: [
+    {
+      netId: "net_vin",
+      name: "VIN",
+      connections: [
+        { instanceId: "V1", pinId: "pos" },
+        { instanceId: "R1", pinId: "p1" },
+      ],
+    },
+    {
+      netId: "net_rl",
+      name: "RL",
+      connections: [
+        { instanceId: "R1", pinId: "p2" },
+        { instanceId: "L1", pinId: "p1" },
+      ],
+    },
+    {
+      netId: "net_vout",
+      name: "VOUT",
+      connections: [
+        { instanceId: "L1", pinId: "p2" },
+        { instanceId: "C1", pinId: "p1" },
+      ],
+    },
+    {
+      netId: "net_gnd",
+      name: "GND",
+      connections: [
+        { instanceId: "C1", pinId: "p2" },
+        { instanceId: "V1", pinId: "neg" },
+        { instanceId: "GND1", pinId: "gnd" },
+      ],
+    },
+  ],
+  layout: {
+    instances: {
+      V1: { x: 120, y: 180, rotation: 0 },
+      R1: { x: 280, y: 100, rotation: 90 },
+      L1: { x: 440, y: 100, rotation: 90 },
+      C1: { x: 600, y: 180, rotation: 0 },
+      GND1: { x: 360, y: 320, rotation: 0 },
+    },
+  },
+});
+
 const contentByKind: Record<TemplateKind, () => SchematicContent> = {
   blank: blankContent,
   "rc-lowpass": rcLowpassContent,
   "esp32-blink": esp32BlinkContent,
   playground: playgroundContent,
   "half-wave-rectifier": halfWaveRectifierContent,
+  "rlc-ringing": rlcRingingContent,
 };
 
 /**
@@ -327,6 +401,11 @@ export const TEMPLATE_OPTIONS: {
     value: "half-wave-rectifier",
     label: "Half-wave rectifier",
     description: "AC→DC: a sine source, Schottky diode and smoothing cap.",
+  },
+  {
+    value: "rlc-ringing",
+    label: "RLC ringing",
+    description: "A series R-L-C that rings and decays on each pulse edge.",
   },
   {
     value: "esp32-blink",

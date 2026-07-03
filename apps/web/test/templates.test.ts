@@ -220,6 +220,65 @@ describe("createFromTemplate", () => {
     });
   });
 
+  describe("rlc-ringing", () => {
+    const bundle = createFromTemplate("rlc-ringing", "RLC");
+    const nets = bundle.schematic.nets;
+    const find = (instanceId: string, pinId: string) =>
+      nets.find((n) =>
+        n.connections.some(
+          (c) => c.instanceId === instanceId && c.pinId === pinId,
+        ),
+      );
+
+    it("is a valid series R-L-C driven by the pulse source", () => {
+      expect(validateProject(bundle.project)).toEqual({ valid: true, errors: [] });
+      expect(validateSchematic(bundle.schematic)).toEqual({ valid: true, errors: [] });
+
+      const byId = new Map(
+        bundle.schematic.instances.map((i) => [i.instanceId, i]),
+      );
+      expect(byId.get("V1")?.componentId).toBe("cmp_vsource_pulse");
+      expect(byId.get("R1")?.componentId).toBe("cmp_resistor_generic");
+      expect(byId.get("L1")?.componentId).toBe("cmp_inductor_generic");
+      expect(byId.get("L1")?.parameterOverrides?.inductance).toBeCloseTo(1e-3, 9);
+      expect(byId.get("C1")?.componentId).toBe("cmp_capacitor_generic");
+      expect(byId.get("C1")?.parameterOverrides?.capacitance).toBeCloseTo(1e-6, 12);
+      expect(
+        bundle.schematic.instances.some((i) => i.componentId === "cmp_ground"),
+      ).toBe(true);
+    });
+
+    it("wires VIN -> R1 -> L1 -> VOUT(C1) -> GND in series", () => {
+      expect(find("V1", "pos")).toBe(find("R1", "p1"));
+      expect(find("R1", "p2")).toBe(find("L1", "p1"));
+      expect(find("L1", "p2")).toBe(find("C1", "p1"));
+      expect(find("C1", "p2")).toBe(find("V1", "neg"));
+    });
+
+    it("has grid-snapped layout positions for every instance", () => {
+      const layout = bundle.schematic.layout;
+      expect(layout).toBeDefined();
+      for (const instance of bundle.schematic.instances) {
+        const pos = layout?.instances[instance.instanceId];
+        expect(pos, `layout for ${instance.instanceId}`).toBeDefined();
+        expect(pos!.x % 20, `${instance.instanceId}.x on grid`).toBe(0);
+        expect(pos!.y % 20, `${instance.instanceId}.y on grid`).toBe(0);
+      }
+    });
+
+    it("compiles with an inductor card alongside the resistor, cap and pulse source", () => {
+      const result = compileNetlist(bundle.schematic, getComponent);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const cards = result.netlist.elements.map((e) => e.spiceCard);
+      expect(cards.some((c) => c.startsWith("LL1 "))).toBe(true);
+      expect(cards.some((c) => c.startsWith("RR1 "))).toBe(true);
+      expect(cards.some((c) => c.startsWith("CC1 "))).toBe(true);
+      expect(cards.some((c) => c.startsWith("VV1 ") && c.includes("PULSE("))).toBe(true);
+      expect(result.netlist.nodes.some((n) => n.spiceNode === "0")).toBe(true);
+    });
+  });
+
   describe("half-wave-rectifier", () => {
     const bundle = createFromTemplate("half-wave-rectifier", "Rectifier");
     const nets = bundle.schematic.nets;
@@ -370,6 +429,7 @@ describe("TEMPLATE_OPTIONS", () => {
       "esp32-blink",
       "playground",
       "half-wave-rectifier",
+      "rlc-ringing",
     ];
     const optionValues = TEMPLATE_OPTIONS.map((o) => o.value).sort();
     expect(optionValues).toEqual([...kinds].sort());
