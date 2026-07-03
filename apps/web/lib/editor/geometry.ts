@@ -14,9 +14,36 @@ export type SymbolKind =
   | "vsource"
   | "ground"
   | "mcu"
+  | "diode"
+  | "npn"
+  | "potentiometer"
+  | "pushbutton"
+  | "switch"
+  | "motor"
+  | "buzzer"
+  | "lamp"
+  | "rgbled"
+  | "ldr"
   | "generic";
 
+/** Curated parts get dedicated symbols keyed by id (issue #23). */
+const ID_KINDS: Record<string, SymbolKind> = {
+  cmp_diode_generic: "diode",
+  cmp_npn_2n2222: "npn",
+  cmp_potentiometer: "potentiometer",
+  cmp_pushbutton: "pushbutton",
+  cmp_switch_spst: "switch",
+  cmp_dc_motor: "motor",
+  cmp_buzzer: "buzzer",
+  cmp_lamp: "lamp",
+  cmp_rgb_led: "rgbled",
+  cmp_ldr: "ldr",
+  cmp_led_generic: "led",
+};
+
 export function getSymbolKind(component: Component): SymbolKind {
+  const byId = ID_KINDS[component.id];
+  if (byId) return byId;
   if (component.category === "mcu") return "mcu";
   switch (refPrefix(component)) {
     case "R":
@@ -50,6 +77,15 @@ function twoPinHorizontal(component: Component, reach: number): Record<string, P
   return pins;
 }
 
+/** Explicit per-pin-id anchors; missing declared ids fall back to origin. */
+function pinsById(component: Component, anchors: Record<string, Point>): Record<string, Point> {
+  const pins: Record<string, Point> = {};
+  for (const pin of component.pins) {
+    pins[pin.id] = anchors[pin.id] ?? { x: 0, y: 0 };
+  }
+  return pins;
+}
+
 const MCU_ROW_SPACING = 20;
 const MCU_HALF_WIDTH = 60;
 
@@ -61,7 +97,48 @@ export function getSymbolGeometry(component: Component): SymbolGeometry {
     case "capacitor":
       return { halfWidth: 20, halfHeight: 12, pins: twoPinHorizontal(component, 20) };
     case "led":
+    case "diode":
       return { halfWidth: 20, halfHeight: 14, pins: twoPinHorizontal(component, 20) };
+    case "npn":
+      return {
+        halfWidth: 22,
+        halfHeight: 24,
+        pins: pinsById(component, {
+          b: { x: -22, y: 0 },
+          c: { x: 14, y: -24 },
+          e: { x: 14, y: 24 },
+        }),
+      };
+    case "potentiometer":
+      return {
+        halfWidth: 30,
+        halfHeight: 22,
+        pins: pinsById(component, {
+          p1: { x: -30, y: 0 },
+          p2: { x: 30, y: 0 },
+          wiper: { x: 0, y: -22 },
+        }),
+      };
+    case "pushbutton":
+    case "switch":
+      return { halfWidth: 22, halfHeight: 14, pins: twoPinHorizontal(component, 22) };
+    case "motor":
+    case "buzzer":
+    case "lamp":
+      return { halfWidth: 24, halfHeight: 14, pins: twoPinHorizontal(component, 24) };
+    case "rgbled":
+      return {
+        halfWidth: 24,
+        halfHeight: 28,
+        pins: pinsById(component, {
+          r: { x: -24, y: -20 },
+          g: { x: -24, y: 0 },
+          b: { x: -24, y: 20 },
+          com: { x: 24, y: 0 },
+        }),
+      };
+    case "ldr":
+      return { halfWidth: 30, halfHeight: 16, pins: twoPinHorizontal(component, 30) };
     case "vsource": {
       const pins: Record<string, Point> = {};
       const [pos, neg] = component.pins;
