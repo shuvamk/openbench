@@ -323,8 +323,9 @@ describe("registry coverage", () => {
     let sch = rcLowpass();
     for (const component of registryComponents) {
       const placed = placeInstance(sch, component, { x: 0, y: 0 });
-      // Readable per-part prefixes landed with issue #23 (BTN/SW/M/BZ/LA/RV/LDR/Q).
-      expect(placed.instanceId).toMatch(/^(R|C|D|V|U|GND|BTN|SW|M|BZ|LA|RV|LDR|Q)\d+$/);
+      // Readable per-part prefixes landed with issue #23 (BTN/SW/M/BZ/LA/RV/LDR/Q);
+      // batch 3 adds the inductor's L prefix.
+      expect(placed.instanceId).toMatch(/^(R|C|D|V|U|GND|BTN|SW|M|BZ|LA|RV|LDR|Q|L)\d+$/);
       sch = placed.schematic;
     }
     expectValid(sch);

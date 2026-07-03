@@ -24,6 +24,12 @@ export type SymbolKind =
   | "lamp"
   | "rgbled"
   | "ldr"
+  | "inductor"
+  | "acsource"
+  | "zener"
+  | "schottky"
+  | "pnp"
+  | "nmos"
   | "generic";
 
 /** Curated parts get dedicated symbols keyed by id (issue #23). */
@@ -39,6 +45,12 @@ const ID_KINDS: Record<string, SymbolKind> = {
   cmp_rgb_led: "rgbled",
   cmp_ldr: "ldr",
   cmp_led_generic: "led",
+  cmp_inductor_generic: "inductor",
+  cmp_vsource_sin: "acsource",
+  cmp_zener_diode: "zener",
+  cmp_schottky_diode: "schottky",
+  cmp_pnp_2n3906: "pnp",
+  cmp_nmos_2n7000: "nmos",
 };
 
 export function getSymbolKind(component: Component): SymbolKind {
@@ -98,8 +110,13 @@ export function getSymbolGeometry(component: Component): SymbolGeometry {
       return { halfWidth: 20, halfHeight: 12, pins: twoPinHorizontal(component, 20) };
     case "led":
     case "diode":
+    case "zener":
+    case "schottky":
       return { halfWidth: 20, halfHeight: 14, pins: twoPinHorizontal(component, 20) };
+    case "inductor":
+      return { halfWidth: 30, halfHeight: 10, pins: twoPinHorizontal(component, 30) };
     case "npn":
+    case "pnp":
       return {
         halfWidth: 22,
         halfHeight: 24,
@@ -107,6 +124,16 @@ export function getSymbolGeometry(component: Component): SymbolGeometry {
           b: { x: -22, y: 0 },
           c: { x: 14, y: -24 },
           e: { x: 14, y: 24 },
+        }),
+      };
+    case "nmos":
+      return {
+        halfWidth: 22,
+        halfHeight: 24,
+        pins: pinsById(component, {
+          g: { x: -22, y: 0 },
+          d: { x: 14, y: -24 },
+          s: { x: 14, y: 24 },
         }),
       };
     case "potentiometer":
@@ -139,7 +166,8 @@ export function getSymbolGeometry(component: Component): SymbolGeometry {
       };
     case "ldr":
       return { halfWidth: 30, halfHeight: 16, pins: twoPinHorizontal(component, 30) };
-    case "vsource": {
+    case "vsource":
+    case "acsource": {
       const pins: Record<string, Point> = {};
       const [pos, neg] = component.pins;
       if (pos) pins[pos.id] = { x: 0, y: -30 };

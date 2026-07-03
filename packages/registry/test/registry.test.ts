@@ -27,6 +27,12 @@ const EXPECTED_IDS = [
   "cmp_lamp",
   "cmp_rgb_led",
   "cmp_ldr",
+  "cmp_inductor_generic",
+  "cmp_vsource_sin",
+  "cmp_zener_diode",
+  "cmp_schottky_diode",
+  "cmp_pnp_2n3906",
+  "cmp_nmos_2n7000",
 ];
 
 const byId = (id: string): Component => {
@@ -300,5 +306,72 @@ describe("real-world parts (issue #22)", () => {
       r: "rdark + (rlight - rdark) * lux",
     });
     expect(ldr.simModel?.template).toBe("R{ref} {p1} {p2} {r}");
+  });
+});
+
+describe("fundamental parts (batch 3)", () => {
+  it("cmp_inductor_generic has p1/p2 and a henry-valued inductance parameter", () => {
+    const inductor = byId("cmp_inductor_generic");
+    expect(inductor.category).toBe("passive");
+    expect(inductor.pins.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(inductor.pins.every((p) => p.electricalType === "passive")).toBe(true);
+    expect(inductor.parameters).toEqual([
+      { name: "inductance", unit: "henry", default: 1e-3, type: "number" },
+    ]);
+    expect(inductor.simModel?.template).toBe("L{ref} {p1} {p2} {inductance}");
+    expect(inductor.footprint?.kicadRef).toBe("Inductor_SMD:L_0603_1608Metric");
+  });
+
+  it("cmp_vsource_sin has pos/neg pins, SIN parameters and a SIN template", () => {
+    const sin = byId("cmp_vsource_sin");
+    expect(sin.category).toBe("power");
+    expect(sin.pins.map((p) => p.id)).toEqual(["pos", "neg"]);
+    expect(sin.parameters).toEqual([
+      { name: "voffset", unit: "volt", default: 0, type: "number" },
+      { name: "vamplitude", unit: "volt", default: 5, type: "number" },
+      { name: "frequency", unit: "hertz", default: 1000, type: "number" },
+      { name: "tdelay", unit: "second", default: 0, type: "number" },
+      { name: "damping", unit: "hertz", default: 0, type: "number" },
+    ]);
+    expect(sin.simModel?.template).toBe(
+      "V{ref} {pos} {neg} SIN({voffset} {vamplitude} {frequency} {tdelay} {damping})",
+    );
+    expect(sin.footprint).toBeUndefined();
+  });
+
+  it("cmp_zener_diode has a/k pins and a 5.1V BV model card", () => {
+    const zener = byId("cmp_zener_diode");
+    expect(zener.category).toBe("active");
+    expect(zener.pins.map((p) => p.id)).toEqual(["a", "k"]);
+    expect(zener.parameters).toEqual([]);
+    expect(zener.simModel?.template).toBe("D{ref} {a} {k} DZENER");
+    expect(zener.simModel?.modelCard).toBe(".model DZENER D(IS=1e-14 N=1.5 BV=5.1)");
+  });
+
+  it("cmp_schottky_diode has a/k pins and a low-drop model card", () => {
+    const schottky = byId("cmp_schottky_diode");
+    expect(schottky.category).toBe("active");
+    expect(schottky.pins.map((p) => p.id)).toEqual(["a", "k"]);
+    expect(schottky.parameters).toEqual([]);
+    expect(schottky.simModel?.template).toBe("D{ref} {a} {k} DSCHOTTKY");
+    expect(schottky.simModel?.modelCard).toBe(".model DSCHOTTKY D(IS=1e-7 N=1.0 RS=0.05)");
+  });
+
+  it("cmp_pnp_2n3906 has c/b/e pins and a 2N3906 PNP model card", () => {
+    const pnp = byId("cmp_pnp_2n3906");
+    expect(pnp.category).toBe("active");
+    expect(pnp.pins.map((p) => p.id)).toEqual(["c", "b", "e"]);
+    expect(pnp.parameters).toEqual([]);
+    expect(pnp.simModel?.template).toBe("Q{ref} {c} {b} {e} Q2N3906");
+    expect(pnp.simModel?.modelCard).toBe(".model Q2N3906 PNP(IS=1e-14 BF=180)");
+  });
+
+  it("cmp_nmos_2n7000 has d/g/s pins, ties bulk to source, and an NMOS model card", () => {
+    const nmos = byId("cmp_nmos_2n7000");
+    expect(nmos.category).toBe("active");
+    expect(nmos.pins.map((p) => p.id)).toEqual(["d", "g", "s"]);
+    expect(nmos.parameters).toEqual([]);
+    expect(nmos.simModel?.template).toBe("M{ref} {d} {g} {s} {s} MOSN");
+    expect(nmos.simModel?.modelCard).toBe(".model MOSN NMOS(VTO=2.1 KP=0.05)");
   });
 });
