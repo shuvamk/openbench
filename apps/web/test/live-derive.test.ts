@@ -238,4 +238,20 @@ describe("deriveInstanceStates", () => {
   it("exports the LED nominal current used for brightness scaling", () => {
     expect(LED_NOMINAL_CURRENT).toBeGreaterThan(0);
   });
+
+  it("a sine voltage source derives a voltage series like the DC/pulse sources", () => {
+    const schematic = schematicWith(
+      [{ instanceId: "V1", componentId: "cmp_vsource_sin" }],
+      [
+        { netId: "net_p", connections: [{ instanceId: "V1", pinId: "pos" }] },
+        { netId: "net_n", name: "GND", connections: [{ instanceId: "V1", pinId: "neg" }] },
+      ],
+    );
+    const result = deriveInstanceStates(schematic, getComponent, makeRun([{ netId: "net_p", samples: constant(3.3) }]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const source = result.states.get("V1")!;
+    expect(source.kind).toBe("source");
+    expect(source.series.voltage![0]).toBeCloseTo(3.3, 6);
+  });
 });
