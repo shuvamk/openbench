@@ -159,3 +159,16 @@ re-enable the required checks with:
 `gh api -X PUT repos/shuvamk/openbench/branches/main/protection` (contexts: test,
 reviewer-agent, context-freshness) — tracked as a `type:infra` issue so it isn't
 forgotten.
+
+## ADR-0013 — Live-mode physics are visual-fidelity approximations (2026-07-03)
+
+**Decision:** Live mode derives per-instance visuals client-side from node voltages:
+Shockley diode current (Is=1e-14, n=2, clamped 50mA) scaled against a 15mA indicator
+nominal for LED brightness; motor speed = |ΔV|/vnominal (no inertia/back-EMF);
+lamp/buzzer intensity = power vs a 0.25W nominal. Interactive parts re-run the real
+simulation (300ms debounce) — only the *rendering* between runs is approximate.
+**Rationale:** The simulator stays the source of truth for circuit behavior; the
+approximations only map already-simulated voltages onto human-legible animation.
+Documented in `apps/web/lib/live/derive.ts`.
+**Consequences:** Firmware-in-the-loop (GPIO events) and current probes can later
+replace the client-side estimates without touching the IR.
