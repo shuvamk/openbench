@@ -244,3 +244,32 @@ describe("resistive loads (motor, buzzer, lamp)", () => {
     ]);
   });
 });
+
+describe("ICs via .subckt (issue #44)", () => {
+  it("cmp_opamp_ideal expands to an X card plus its .subckt block", () => {
+    const result = compilePart("cmp_opamp_ideal");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "X1", spiceCard: "XX1 1 2 3 OPAMP" },
+      {
+        instanceId: "cmp_opamp_ideal",
+        spiceCard: ".subckt OPAMP inp inn out\nEout out 0 inp inn 100k\n.ends OPAMP",
+      },
+    ]);
+  });
+
+  it.each([
+    [0, 0.5],
+    [25, 0.75],
+    [100, 1.5],
+  ])("cmp_tmp36 at %s°C outputs %sV", (tempC, volts) => {
+    const result = compilePart("cmp_tmp36", { tempC });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Pins map to nodes in declaration order: vs=1, vout=2, gnd=3.
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "X1", spiceCard: `VX1 2 3 DC ${volts}` },
+    ]);
+  });
+});
