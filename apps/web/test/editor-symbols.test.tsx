@@ -57,6 +57,10 @@ describe("dedicated symbol kinds (issue #23)", () => {
     cmp_tmp36: "ic",
     cmp_isource_dc: "isource",
     cmp_isource_sin: "isource",
+    cmp_logic_7400: "ic",
+    cmp_logic_7404: "ic",
+    cmp_logic_7408: "ic",
+    cmp_7segment_display: "ic",
   };
   for (const [id, kind] of Object.entries(expectations)) {
     it(`${id} → ${kind}`, () => {
@@ -75,5 +79,13 @@ describe("dedicated symbol kinds (issue #23)", () => {
     expect(refPrefix(byId.get("cmp_buzzer")!)).toBe("BZ");
     expect(refPrefix(byId.get("cmp_lamp")!)).toBe("LA");
     expect(refPrefix(byId.get("cmp_ldr")!)).toBe("LDR");
+  });
+
+  it("digital & visual ICs get conventional reference prefixes (issue #44)", () => {
+    const byId = new Map(registryComponents.map((c) => [c.id, c]));
+    expect(refPrefix(byId.get("cmp_logic_7400")!)).toBe("U");
+    expect(refPrefix(byId.get("cmp_logic_7404")!)).toBe("U");
+    expect(refPrefix(byId.get("cmp_logic_7408")!)).toBe("U");
+    expect(refPrefix(byId.get("cmp_7segment_display")!)).toBe("DS");
   });
 });
