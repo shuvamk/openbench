@@ -10,7 +10,7 @@
 | Netlist compiler | `packages/netlist-compiler` | **wired** | pure TS |
 | Registry | `packages/registry` | **wired** — 27 curated parts | pure TS data |
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
-| ngspice | `packages/mcp-sim-ngspice` | **partial** — transient, WASM+mock backends | WASM (`eecircuit-engine`) in-browser; native CLI pending |
+| ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep, WASM+mock backends | WASM (`eecircuit-engine`) in-browser; native CLI pending |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
 | QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config generation | qemu-system-xtensa launch stub (ADR-0011) |
 
@@ -80,10 +80,27 @@
   deterministic MockBackend (node-safe) and EECircuitBackend (WASM, dynamic import).
   `runSimulation` docs pass validateSimulationRun; failures → status `failed` with
   inline logs, never throws.
+- Modes (issue #36): `runSimulation`/`buildSpiceDeck` take a discriminated
+  `mode` union — `transient` (`.tran`), `ac` (`.ac <sweep> <points> <fStart>
+  <fStop>`), `dcSweep` (`.dc <source> <start> <stop> <step>`). The backend
+  `SimBackend.run` result generalized from `{ time, signals }` to `{ x, signals,
+  phase? }`: `x` is the independent axis (time s / frequency Hz / swept-source
+  value). AC runs emit per-net magnitude (`unit: "dB"`) + phase (`unit: "deg"`)
+  signals plus a `frequency`/Hz axis; dcSweep emits per-net V signals plus the
+  swept source (e.g. `V1`, unit V) as the x-axis — **not** `time`. Bad config
+  (fStop ≤ fStart, non-integer/≤0 points, bad sweep type, step 0, empty source)
+  → structured `NgspiceAdapterError` → `status:"failed"`, never a throw.
+  MockBackend AC is a synthetic single-pole low-pass whose corner is the deck's
+  first R·C (1k·1u ⇒ −3 dB ≈ 159 Hz); MockBackend dcSweep is a synthetic linear
+  transfer (first probe slope 0.5). The MCP server tool surface is still
+  transient-only — exposing ac/dcSweep as MCP tools is a follow-up.
 - Verified 2026-07-02: EECircuitBackend ran a real transient in a browser session (RC low-pass demo, deck `.tran 10us 10ms`, physically-correct DC steady-state waveforms, zero console errors). Gaps: native ngspice CLI backend not
-  implemented; operating-point mode pending (transient only); remote sample URLs are
-  pass-through (`decodeSamples` throws for http/s3).
-- Limits: MockBackend 256 samples/signal; WASM ~1M samples/signal (ADR-0007 guard).
+  implemented; operating-point mode pending; remote sample URLs are
+  pass-through (`decodeSamples` throws for http/s3). EECircuitBackend `ac`/`dcSweep`
+  paths (complex→dB/deg mapping via `img`/`real`, frequency/swept-source axis
+  detection) are implemented but **pending a browser verification session** — only
+  the MockBackend ac/dcSweep paths are node-verified so far.
+- Limits: MockBackend 256 samples/signal (transient); WASM ~1M samples/signal (ADR-0007 guard).
 
 ## PlatformIO (`packages/mcp-firmware-platformio`)
 

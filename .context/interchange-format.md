@@ -241,3 +241,59 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
     "provenance": { "source": "registry", "addedBy": "registry-curator", "at": "<iso8601>" }
   }
   ```
+- **2026-07-05** — issue #36, ADDITIVE, patch-level (no `irVersion` bump;
+  `simulationRun.mode` is a documented per-adapter free string, so new modes need
+  no schema change): the ngspice adapter grows two analysis modes beyond
+  `transient`. `mode: "ac"` (small-signal frequency sweep) pairs with
+  `config: { sweep: "dec"|"oct"|"lin", points, fStart, fStop }` and produces
+  results that carry, per probed net, a magnitude signal (`unit: "dB"`) and a
+  phase signal (`unit: "deg"`) over a `frequency` axis (`unit: "Hz"`).
+  `mode: "dcSweep"` (DC transfer curve) pairs with
+  `config: { source, start, stop, step }` and puts the swept independent source
+  (e.g. `V1`, `unit: "V"`) on the x-axis in place of `time`. `waveform-v1` is
+  unchanged — these are just new `unit`/`netId` conventions within it. Bad config
+  (`fStop ≤ fStart`, non-positive/non-integer `points`, `step: 0`, empty
+  `source`) yields a `status: "failed"` run with an inline log, never a throw.
+
+  ```jsonc
+  // === Additive — ngspice AC analysis run (issue #36) ===
+  {
+    "irVersion": "0.1.0",
+    "kind": "simulationRun",
+    "id": "sim_<uuid>",
+    "netlistId": "net_<uuid>",
+    "engine": "ngspice",
+    "mode": "ac",
+    "config": { "sweep": "dec", "points": 10, "fStart": "1", "fStop": "1meg" },
+    "status": "completed",
+    "results": {
+      "format": "waveform-v1",
+      "signals": [
+        { "netId": "net_vout", "unit": "dB",  "samples": "s3://.../vout.mag.bin" },
+        { "netId": "net_vout", "unit": "deg", "samples": "s3://.../vout.phase.bin" },
+        { "netId": "frequency", "unit": "Hz", "samples": "s3://.../freq.bin" }
+      ]
+    },
+    "provenance": { "source": "mcp-sim-ngspice", "at": "<iso8601>" }
+  }
+
+  // === Additive — ngspice DC-sweep run (issue #36) ===
+  {
+    "irVersion": "0.1.0",
+    "kind": "simulationRun",
+    "id": "sim_<uuid>",
+    "netlistId": "net_<uuid>",
+    "engine": "ngspice",
+    "mode": "dcSweep",
+    "config": { "source": "V1", "start": 0, "stop": 5, "step": 0.1 },
+    "status": "completed",
+    "results": {
+      "format": "waveform-v1",
+      "signals": [
+        { "netId": "net_vout", "unit": "V", "samples": "s3://.../vout.bin" },
+        { "netId": "V1", "unit": "V", "samples": "s3://.../sweep.bin" }
+      ]
+    },
+    "provenance": { "source": "mcp-sim-ngspice", "at": "<iso8601>" }
+  }
+  ```

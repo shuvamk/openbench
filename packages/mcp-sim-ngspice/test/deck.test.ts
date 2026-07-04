@@ -88,8 +88,10 @@ describe("buildSpiceDeck — AC analysis", () => {
   });
 
   it("supports oct and lin sweep types", () => {
-    expect(cardLines(rcNetlist, { ...acConfig, sweep: "oct" })).toContain(".ac oct 10 1 1meg");
-    expect(cardLines(rcNetlist, { ...acConfig, sweep: "lin", points: 100 })).toContain(
+    expect(cardLines(rcNetlist, { ...acConfig, sweep: "oct" as const })).toContain(
+      ".ac oct 10 1 1meg",
+    );
+    expect(cardLines(rcNetlist, { ...acConfig, sweep: "lin" as const, points: 100 })).toContain(
       ".ac lin 100 1 1meg",
     );
   });
