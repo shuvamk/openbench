@@ -10,7 +10,7 @@ import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/Stack";
-import { useEditorStore } from "../../lib/editor/store";
+import { activeProbeNetIds, useEditorStore } from "../../lib/editor/store";
 import { defaultProbeNetIds } from "../../lib/sim/run";
 import { useSimStore } from "../../lib/sim/store";
 import { WaveformViewer, type WaveformTrace } from "./WaveformViewer";
@@ -69,6 +69,20 @@ function SimulationTab() {
     return { time, traces };
   }, [run, schematic]);
 
+  // Scope probes (issue #37), when present, select which signals are "active"
+  // in the viewer; with no probes the viewer shows every decodable signal.
+  const probedNetIds = useMemo(
+    () => (schematic ? activeProbeNetIds(schematic) : []),
+    [schematic],
+  );
+  const shownTraces = useMemo(
+    () =>
+      probedNetIds.length > 0
+        ? traces.filter((trace) => probedNetIds.includes(trace.id))
+        : traces,
+    [traces, probedNetIds],
+  );
+
   const isRunning = status === "queued" || status === "running";
   const isValid = isSpiceTimeValue(duration) && isSpiceTimeValue(step);
 
@@ -120,7 +134,7 @@ function SimulationTab() {
       </div>
       <WaveformViewer
         time={time}
-        traces={traces}
+        traces={shownTraces}
         hiddenTraceIds={hiddenTraceIds}
         onToggleTrace={toggleTrace}
       />
