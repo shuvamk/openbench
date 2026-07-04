@@ -288,3 +288,38 @@ poll→PWL→ngspice→derive loop, (4) a Direction-B lockstep spike for `GPIO_I
 Items 1–3 close the Phase-1.5 loop; item 4 opens the Phase-2 bidirectional door. Drive
 constants (`VOH=3.3 V`, `Rout≈30 Ω`, ~1 µs edge ramp) are documented bridge approximations
 consistent with ADR-0013. Follows ADR-0017.
+
+## ADR-0019 — Agent-control MCP surface: stateless, shared `schematic-ops` package (spike #33, 2026-07-04)
+
+**Decision:** `packages/mcp-openbench` (the product-level agent surface) is **stateless** —
+every tool takes the current `schematic`/`project` IR document as an argument and returns the
+mutated document plus any derived result; the server holds no session, no in-memory project,
+no lease. It exposes **nine authoring→derivation→inspection tools** (`create_project`,
+`list_registry`, `add_instance`, `connect`, `set_param`, `remove_instances`,
+`validate_schematic`, `compile_netlist`, `run_simulation`, `read_waveform`), each a thin
+translation of an **existing pure function** — no new engine logic. To let the in-app copilot
+and the external MCP server share ONE implementation, the pure authoring functions in
+`apps/web/lib/editor/mutations.ts` are **extracted verbatim into a new headless package
+`packages/schematic-ops`** (deps: `@openbench/ir-schema` only); `mutations.ts` becomes a
+re-export shim. Tools return the repo-standard never-throw discriminated result
+(`{ ok:true, data, warnings? } | { ok:false, errors:[{path,message}] }`), identical to
+`compileNetlist`/`mcp-sim-ngspice`. Full finding: `.context/agent-control-surface.md`.
+**Rationale:** The IR is already canonical and mutations are already pure `Schematic →
+Schematic`; a stateless surface is a direct exposure of that, whereas a stateful server bolts
+a second divergent copy of project state onto the process and immediately raises "who wins
+when the canvas and the agent both edit?". It also matches `mcp-sim-ngspice` (full doc in,
+full doc out, no session) — keeping the whole MCP fleet consistent — and gives concurrency and
+crash-safety for free. The `schematic-ops` extraction is the load-bearing decision: it is the
+only way an MCP server (which must not depend on `apps/web`) can call the *same* code the
+canvas does, guaranteeing the copilot and external agent never drift. The extraction is
+behaviour-preserving, so it is TDD-cheap (move file, repoint existing `mutations.test.ts`,
+prove green, add shim).
+**Consequences:** No IR/schema change (design spike; the surface only *consumes* existing IR).
+A session `projectId → doc` cache is explicitly deferred (YAGNI — reintroduces the divergence
+problem the moment it exists; layerable later without changing any tool contract), and
+`get_schematic` is omitted for the same reason (the stateless agent already holds the doc). The
+surface is registry-scoped: authoring arbitrary parts by KiCad library symbol is the **Q1**
+boundary (KiCad symbols enter via `mcp-kicad import`, not here). `run_simulation` is analog-only
+now; firmware-in-the-loop co-sim (ADR-0018, was Q3) is gained later by widening its `mode`/`engine`
+enum with no tool-shape change. Two follow-up issues filed: (1) extract `packages/schematic-ops`
+(enabling), (2) implement `packages/mcp-openbench`. Follows ADR-0018.
