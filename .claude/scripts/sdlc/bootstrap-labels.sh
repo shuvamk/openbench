@@ -21,13 +21,13 @@ fi
 
 ensure_label() {
   local name="$1" color="$2" desc="$3"
-  if gh label list $(gh_repo_flag) --limit 300 --json name --jq '.[].name' | grep -Fxq "$name"; then
-    gh label edit "$name" $(gh_repo_flag) --color "$color" --description "$desc" >/dev/null
-    echo "  [=] $name"
-  else
-    gh label create "$name" $(gh_repo_flag) --color "$color" --description "$desc" >/dev/null
-    echo "  [+] $name"
-  fi
+  # Atomic upsert: `gh label create --force` creates the label, or updates its
+  # color/description if it already exists. This replaces a check-then-create
+  # (list | grep, then create) that raced — a grep miss on an existing label
+  # made `create` fail with "already exists" and, under `set -e`, killed the
+  # whole run mid-way.
+  gh label create "$name" $(gh_repo_flag) --color "$color" --description "$desc" --force >/dev/null
+  echo "  [~] $name"
 }
 
 echo "Bootstrapping openbench labels on $repo..."
