@@ -12,3 +12,8 @@ coverage/
 .turbo/
 .claude/.tdd-last-test-touch
 .env*
+
+# SDLC pipeline + session tooling — local state, not tracked
+.claude/worktrees/
+.claude/sdlc/state/
+.claude/session-ledger-state/

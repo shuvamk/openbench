@@ -1,0 +1,4 @@
+{
+  "_comment": "Tests known-red on origin/main for reasons unrelated to in-flight work. Before diagnosing a red test, check here. Add entries as {test, reason, tracking_issue}.",
+  "entries": []
+}

@@ -1,0 +1,33 @@
+{
+  "repo": "shuvamk/openbench",
+  "heartbeat_stale_after_seconds": 1800,
+  "heartbeat_warn_after_seconds": 900,
+  "default_priority": "p2",
+  "areas": [
+    "ir-schema",
+    "mcp-kicad",
+    "mcp-sim",
+    "mcp-firmware",
+    "registry",
+    "frontend",
+    "ai",
+    "collab-engine",
+    "agent-ops"
+  ],
+  "types": [
+    "feature",
+    "bug",
+    "test",
+    "refactor",
+    "spike",
+    "infra",
+    "docs"
+  ],
+  "priorities": ["p0", "p1", "p2"],
+  "status": {
+    "ready": "status:ready",
+    "in_progress": "status:in-progress",
+    "review": "status:needs-review",
+    "blocked": "status:blocked"
+  }
+}
