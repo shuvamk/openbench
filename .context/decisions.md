@@ -214,3 +214,24 @@ agent had committed batch-3 to `feat/fundamental-parts-batch3`; a near-identical
 duplicate commit of mine was rebased out so the shared branch stays linear —
 `0dbbdd7` (test) then `7286217` (feat) are the other agent's, everything after is UX.
 No IR/compiler/API change, so `context-freshness` isn't triggered.
+
+## ADR-0016 — ERC engine heuristics (issue #35, 2026-07-04)
+
+**Decision:** `packages/erc` is a new pure package (`checkSchematic(schematic,
+resolveComponent) → { violations }`) that reads only the schematic IR and each
+component's `pin.electricalType`. Two non-obvious heuristics: (1) a "source" is detected
+structurally — its SPICE template starts with `V`/`I` (`/^[VI]\{ref\}/`) — rather than by
+category, so any voltage/current source triggers the no-ground rule without a hard-coded
+id list; (2) `power_in` pins belonging to the ground symbol (`cmp_ground`) are exempt
+from `ERC_POWER_NOT_DRIVEN`, and any pin on a ground net counts as driven, because ground
+is a reference node, not a load. A net is "driven" iff it is ground or carries an
+`output`/`power_out` pin.
+**Rationale:** ERC must be an independent, engine-free correctness layer the AI copilot
+and inspector can call cheaply before spending a sim run. Keeping it a pure IR consumer
+(no IR/schema change, injected resolver like the netlist compiler) means zero migration
+risk and no coupling to the registry. The structural source-detection avoids a brittle
+allow-list as the registry grows.
+**Consequences:** ADR **0016** follows ADR-0015 (the parallel editor-UX branch's ADR),
+which merged to `main` first; kept in numeric order on the merge. ERC has no UI yet — a
+follow-up frontend issue surfaces violations in the inspector. Rules are additive: new
+codes (`ERC_*`) can land without breaking existing consumers.

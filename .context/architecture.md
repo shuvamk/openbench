@@ -46,6 +46,15 @@ other directly — every hand-off is an IR document.
 - Assigns SPICE node numbers (ground nets → `0`), expands component `simModel.template`
   strings into SPICE cards, records `derivedBy: "netlist-compiler@<version>"`.
 
+### 2.5 Validation layer — `packages/erc`
+- Pure function: `checkSchematic(schematic, resolveComponent) → { violations }`.
+- Reads only the schematic IR and each component's `pin.electricalType` — no engine,
+  no IR change. Rules: `ERC_NO_GROUND`, `ERC_FLOATING_PIN`, `ERC_POWER_NOT_DRIVEN`,
+  `ERC_OUTPUT_CONFLICT`, `ERC_SINGLE_PIN_NET`, `ERC_UNRESOLVED_COMPONENT`. Never throws —
+  malformed input becomes a violation. Feeds the inspector's ERC panel (follow-up) and
+  the AI copilot's "why won't this work?" explanations. Component resolution is injected,
+  mirroring the netlist compiler's decoupling from the registry.
+
 ### 3. Engine adapters — `packages/mcp-*`
 Each adapter is an MCP server exposing the standard tool contract
 (`import`, `export`, `validate`) plus engine-specific tools (e.g. `runSimulation`).
