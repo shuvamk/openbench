@@ -1,0 +1,11 @@
+{
+  "name": "@openbench/erc",
+  "version": "0.1.0",
+  "description": "Electrical-rule-check engine: pure schematic IR → violations.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@openbench/ir-schema": "*" },
+  "devDependencies": { "@openbench/registry": "*" }
+}

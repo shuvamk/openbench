@@ -192,3 +192,24 @@ The MOSFET and DC motor share the `M` instance-prefix space (both derive `M` fro
 template/id); acceptable since instance ids stay unique per schematic. Op-amps and other
 `.subckt`-based parts remain deferred until the netlist compiler grows subcircuit support
 (open question Q3).
+
+## ADR-0016 — ERC engine heuristics (issue #35, 2026-07-04)
+
+**Decision:** `packages/erc` is a new pure package (`checkSchematic(schematic,
+resolveComponent) → { violations }`) that reads only the schematic IR and each
+component's `pin.electricalType`. Two non-obvious heuristics: (1) a "source" is detected
+structurally — its SPICE template starts with `V`/`I` (`/^[VI]\{ref\}/`) — rather than by
+category, so any voltage/current source triggers the no-ground rule without a hard-coded
+id list; (2) `power_in` pins belonging to the ground symbol (`cmp_ground`) are exempt
+from `ERC_POWER_NOT_DRIVEN`, and any pin on a ground net counts as driven, because ground
+is a reference node, not a load. A net is "driven" iff it is ground or carries an
+`output`/`power_out` pin.
+**Rationale:** ERC must be an independent, engine-free correctness layer the AI copilot
+and inspector can call cheaply before spending a sim run. Keeping it a pure IR consumer
+(no IR/schema change, injected resolver like the netlist compiler) means zero migration
+risk and no coupling to the registry. The structural source-detection avoids a brittle
+allow-list as the registry grows.
+**Consequences:** New numbered ADR is **0016**, leaving 0015 for the parallel
+editor-UX branch's in-flight ADR (avoids a merge collision). ERC has no UI yet — a
+follow-up frontend issue surfaces violations in the inspector. Rules are additive: new
+codes (`ERC_*`) can land without breaking existing consumers.
