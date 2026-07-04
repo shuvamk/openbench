@@ -60,6 +60,34 @@ Default pipeline for every feature:
 `planner → tdd-implementer → reviewer → auto-merge → deploy → deploy-sanity`.
 Agent roles and handoffs: `.context/agent-roles.md`.
 
+## Parallel work: worktrees, the issue lease & the session ledger
+
+Multiple agents run against this repo at once. Three mechanisms keep them from
+colliding — all live under `.claude/` and are wired via `.claude/settings.json`:
+
+1. **Mandatory worktree workflow** (`.claude/hooks/worktree-workflow.sh`,
+   a `UserPromptSubmit` hook). Every code-modifying task runs in its own
+   `.claude/worktrees/<slug>` branch off `origin/main` — never in the main
+   checkout, never off local `main` (which may carry unpushed WIP). Work reaches
+   `main` only through a PR + the reviewer gate + auto-merge; you never `git merge`
+   or push to `main` directly. Read-only / pure-question / `.claude`- or
+   `.context`-only prompts skip the dance.
+
+2. **Heartbeat-leased issue queue** (`.claude/sdlc/` + `.claude/scripts/sdlc/`,
+   surfaced by the `/pick-issue`, `/file-issue`, `/reap-stale` skills). Claiming a
+   `status:ready` issue swaps it to `status:in-progress` and posts a sticky
+   heartbeat comment; a stale claim (>30 min without a heartbeat) is reaped back to
+   `status:ready` so a dropped worker never locks an issue. This is the fast lane
+   over `.github/workflows/issue-hygiene.yml`'s 36h backstop. It uses the existing
+   label taxonomy (`.github/LABELS.md`) — no new labels. Bootstrap once with
+   `.claude/scripts/sdlc/bootstrap-labels.sh`. Run SDLC scripts from the main
+   checkout (absolute path) — `.claude/` isn't tracked on feature branches.
+
+3. **Session ledger** (`.claude/hooks/session-ledger-check.sh`, a `Stop` hook).
+   When a turn touched code, it blocks the stop once per session and asks for a
+   short ledger: what's committed / pushed / in review / deployed, which worktrees
+   and branches remain, and what manual follow-ups are outstanding.
+
 ## Where things live
 
 | Concern | Location |
@@ -74,6 +102,7 @@ Agent roles and handoffs: `.context/agent-roles.md`.
 | Agent roles | `.context/agent-roles.md` |
 | Skills | `.claude/skills/` |
 | Label taxonomy | `.github/LABELS.md` |
+| Worktree / lease / ledger tooling | `.claude/hooks/`, `.claude/scripts/sdlc/`, `.claude/sdlc/README.md` |
 
 A `.context/` update is part of "done" for any task that changes architecture, adds an
 engine capability, or resolves an open question. CI (`context-freshness.yml`) fails if
