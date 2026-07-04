@@ -187,6 +187,40 @@ describe("SchematicCanvas", () => {
   });
 });
 
+describe("SchematicCanvas — scope probes (issue #37)", () => {
+  beforeEach(seedStore);
+  afterEach(cleanup);
+
+  it("dropping a probe with the probe tool marks the net and renders a marker", () => {
+    const { container } = render(<SchematicCanvas />);
+    act(() => useEditorStore.getState().setTool("probe"));
+    const netWire = container.querySelector('[data-net-id="net_out"] polyline')!;
+    expect(netWire).not.toBeNull();
+    fireEvent.click(netWire);
+    const probes = useEditorStore.getState().bundle!.schematic.layout?.probes ?? [];
+    expect(probes.map((p) => p.netId)).toContain("net_out");
+    expect(container.querySelector("[data-probe-id]")).not.toBeNull();
+  });
+
+  it("does not drop a probe when the probe tool is not armed", () => {
+    const { container } = render(<SchematicCanvas />);
+    // Default tool is "select".
+    fireEvent.click(container.querySelector('[data-net-id="net_out"] polyline')!);
+    expect(useEditorStore.getState().bundle!.schematic.layout?.probes ?? []).toEqual([]);
+  });
+
+  it("clicking an existing probe marker removes it", () => {
+    act(() =>
+      useEditorStore.getState().addProbe("net_out", { x: 200, y: 120 }),
+    );
+    const { container } = render(<SchematicCanvas />);
+    const marker = container.querySelector("[data-probe-id]")!;
+    expect(marker).not.toBeNull();
+    fireEvent.click(marker);
+    expect(useEditorStore.getState().bundle!.schematic.layout?.probes ?? []).toEqual([]);
+  });
+});
+
 describe("Palette", () => {
   beforeEach(seedStore);
   afterEach(cleanup);
@@ -199,6 +233,12 @@ describe("Palette", () => {
     fireEvent.click(screen.getByRole("button", { name: /Resistor/ }));
     expect(useEditorStore.getState().tool).toBe("place");
     expect(useEditorStore.getState().placingComponentId).toBe("cmp_resistor_generic");
+  });
+
+  it("arms the scope-probe tool when the probe button is clicked", () => {
+    render(withTheme(<Palette />));
+    fireEvent.click(screen.getByRole("button", { name: /Scope probe/ }));
+    expect(useEditorStore.getState().tool).toBe("probe");
   });
 
   it("filters the parts list as the user types in the search box", () => {
