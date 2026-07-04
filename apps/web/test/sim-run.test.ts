@@ -115,10 +115,10 @@ describe("createFallbackBackend", () => {
       new MockBackend(),
       (entry) => entries.push(entry),
     );
-    const { time, signals } = await backend.run("* t\nR1 1 0 1k\n.tran 10us 10ms\n.end\n", [
+    const { x, signals } = await backend.run("* t\nR1 1 0 1k\n.tran 10us 10ms\n.end\n", [
       "v(1)",
     ]);
-    expect(time.length).toBeGreaterThan(0);
+    expect(x.length).toBeGreaterThan(0);
     expect(signals["v(1)"]).toBeDefined();
     expect(
       entries.some((e) => e.level === "warn" && /falling back/i.test(e.text) && /mock/i.test(e.text)),
