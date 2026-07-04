@@ -32,6 +32,7 @@ export type SymbolKind =
   | "nmos"
   | "opamp"
   | "ic"
+  | "isource"
   | "generic";
 
 /** Curated parts get dedicated symbols keyed by id (issue #23). */
@@ -70,6 +71,8 @@ export function getSymbolKind(component: Component): SymbolKind {
       return "led";
     case "V":
       return "vsource";
+    case "I":
+      return "isource";
     case "GND":
       return "ground";
     default:
@@ -181,7 +184,8 @@ export function getSymbolGeometry(component: Component): SymbolGeometry {
     case "ldr":
       return { halfWidth: 30, halfHeight: 16, pins: twoPinHorizontal(component, 30) };
     case "vsource":
-    case "acsource": {
+    case "acsource":
+    case "isource": {
       const pins: Record<string, Point> = {};
       const [pos, neg] = component.pins;
       if (pos) pins[pos.id] = { x: 0, y: -30 };

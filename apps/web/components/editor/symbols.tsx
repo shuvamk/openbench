@@ -171,6 +171,19 @@ function InductorGlyph() {
   );
 }
 
+function IsourceGlyph() {
+  return (
+    <g>
+      <line x1={0} y1={-30} x2={0} y2={-14} {...strokeProps} />
+      <line x1={0} y1={14} x2={0} y2={30} {...strokeProps} />
+      <circle cx={0} cy={0} r={14} fill={BODY} stroke={STROKE} strokeWidth={1.5} />
+      {/* current-direction arrow (pos → neg, pointing down) */}
+      <line x1={0} y1={-8} x2={0} y2={8} {...strokeProps} />
+      <polygon points="0,10 -4,4 4,4" fill={STROKE} stroke="none" />
+    </g>
+  );
+}
+
 function AcSourceGlyph() {
   return (
     <g>
@@ -456,6 +469,8 @@ export function SymbolGlyph({ component }: { component: Component }) {
       return <VsourceGlyph />;
     case "acsource":
       return <AcSourceGlyph />;
+    case "isource":
+      return <IsourceGlyph />;
     case "ground":
       return <GroundGlyph />;
     default:

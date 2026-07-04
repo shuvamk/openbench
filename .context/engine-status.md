@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | IR core | `packages/ir-schema` | **wired** — all six kinds | pure TS (zod) |
 | Netlist compiler | `packages/netlist-compiler` | **wired** | pure TS |
-| Registry | `packages/registry` | **wired** — 25 curated parts | pure TS data |
+| Registry | `packages/registry` | **wired** — 27 curated parts | pure TS data |
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient, WASM+mock backends | WASM (`eecircuit-engine`) in-browser; native CLI pending |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
@@ -26,7 +26,8 @@
 
 ## Registry (`packages/registry`)
 
-- Wired (issues #6, #17, #22; batch 3; ICs #44): 25 parts — passives, LED/RGB/diode/NPN, PULSE & DC sources,
+- Wired (issues #6, #17, #22; batch 3; ICs #44; current sources): 27 parts — passives, LED/RGB/diode/NPN,
+  DC/pulse/sine voltage sources, DC/sine current sources (`I{ref}` cards, symbol kind `isource`),
   interactive parts (pushbutton, switch, potentiometer, LDR) via `derivedParams`, and
   electromechanical visuals (DC motor, buzzer, lamp). Batch 3 adds the fundamentals that
   were missing: `cmp_inductor_generic` (completes R/C/L → enables RL/RLC), `cmp_vsource_sin`

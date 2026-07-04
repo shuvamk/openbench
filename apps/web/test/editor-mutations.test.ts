@@ -325,7 +325,7 @@ describe("registry coverage", () => {
       const placed = placeInstance(sch, component, { x: 0, y: 0 });
       // Readable per-part prefixes landed with issue #23 (BTN/SW/M/BZ/LA/RV/LDR/Q);
       // batch 3 adds the inductor's L prefix.
-      expect(placed.instanceId).toMatch(/^(R|C|D|V|U|GND|BTN|SW|M|BZ|LA|RV|LDR|Q|L)\d+$/);
+      expect(placed.instanceId).toMatch(/^(R|C|D|V|U|GND|BTN|SW|M|BZ|LA|RV|LDR|Q|L|I)\d+$/);
       sch = placed.schematic;
     }
     expectValid(sch);

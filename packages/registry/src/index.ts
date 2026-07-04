@@ -16,6 +16,8 @@ import {
   esp32Devkit,
   ground,
   inductorGeneric,
+  isourceDc,
+  isourceSin,
   lamp,
   ldr,
   ledGeneric,
@@ -60,6 +62,8 @@ export const registryComponents: Component[] = [
   nmos2n7000,
   opampIdeal,
   tmp36,
+  isourceDc,
+  isourceSin,
   ground,
   esp32Devkit,
 ];

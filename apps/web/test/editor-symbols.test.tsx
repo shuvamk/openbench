@@ -55,6 +55,8 @@ describe("dedicated symbol kinds (issue #23)", () => {
     cmp_nmos_2n7000: "nmos",
     cmp_opamp_ideal: "opamp",
     cmp_tmp36: "ic",
+    cmp_isource_dc: "isource",
+    cmp_isource_sin: "isource",
   };
   for (const [id, kind] of Object.entries(expectations)) {
     it(`${id} → ${kind}`, () => {
