@@ -35,6 +35,8 @@ const EXPECTED_IDS = [
   "cmp_nmos_2n7000",
   "cmp_opamp_ideal",
   "cmp_tmp36",
+  "cmp_isource_dc",
+  "cmp_isource_sin",
 ];
 
 const byId = (id: string): Component => {
@@ -401,5 +403,33 @@ describe("ICs (batch 4, issue #44)", () => {
     // TMP36: Vout = 500mV + 10mV/°C.
     expect(tmp36.simModel?.derivedParams).toEqual({ vout_v: "0.5 + 0.01 * tempC" });
     expect(tmp36.simModel?.template).toBe("V{ref} {vout} {gnd} DC {vout_v}");
+  });
+});
+
+describe("current sources (batch 5)", () => {
+  it("cmp_isource_dc has pos/neg pins and an ampere-valued current parameter", () => {
+    const isrc = byId("cmp_isource_dc");
+    expect(isrc.category).toBe("power");
+    expect(isrc.pins.map((p) => p.id)).toEqual(["pos", "neg"]);
+    expect(isrc.parameters).toEqual([
+      { name: "current", unit: "ampere", default: 0.001, type: "number" },
+    ]);
+    expect(isrc.simModel?.template).toBe("I{ref} {pos} {neg} DC {current}");
+  });
+
+  it("cmp_isource_sin has pos/neg pins, SIN parameters and a SIN template", () => {
+    const isrc = byId("cmp_isource_sin");
+    expect(isrc.category).toBe("power");
+    expect(isrc.pins.map((p) => p.id)).toEqual(["pos", "neg"]);
+    expect(isrc.parameters).toEqual([
+      { name: "ioffset", unit: "ampere", default: 0, type: "number" },
+      { name: "iamplitude", unit: "ampere", default: 0.001, type: "number" },
+      { name: "frequency", unit: "hertz", default: 1000, type: "number" },
+      { name: "tdelay", unit: "second", default: 0, type: "number" },
+      { name: "damping", unit: "hertz", default: 0, type: "number" },
+    ]);
+    expect(isrc.simModel?.template).toBe(
+      "I{ref} {pos} {neg} SIN({ioffset} {iamplitude} {frequency} {tdelay} {damping})",
+    );
   });
 });
