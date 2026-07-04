@@ -174,3 +174,57 @@ describe("spec-sync: subcircuit component example (issue #34)", () => {
     expect(result.valid).toBe(true);
   });
 });
+
+// .context/interchange-format.md §"Additive fields" — ngspice ac/dcSweep modes
+// (issue #36). Mode is a documented per-adapter free string; AC runs carry
+// dB/deg magnitude+phase over a frequency axis, DC-sweep runs put the swept
+// source on the x-axis.
+const acRunExample = {
+  irVersion: "0.1.0",
+  kind: "simulationRun",
+  id: "sim_00000000000000000000000000000000",
+  netlistId: "net_00000000000000000000000000000000",
+  engine: "ngspice",
+  mode: "ac",
+  config: { sweep: "dec", points: 10, fStart: "1", fStop: "1meg" },
+  status: "completed",
+  results: {
+    format: "waveform-v1",
+    signals: [
+      { netId: "net_vout", unit: "dB", samples: "s3://.../vout.mag.bin" },
+      { netId: "net_vout", unit: "deg", samples: "s3://.../vout.phase.bin" },
+      { netId: "frequency", unit: "Hz", samples: "s3://.../freq.bin" },
+    ],
+  },
+  provenance: { source: "mcp-sim-ngspice", at: "2026-07-02T00:00:00Z" },
+};
+
+const dcSweepRunExample = {
+  irVersion: "0.1.0",
+  kind: "simulationRun",
+  id: "sim_00000000000000000000000000000000",
+  netlistId: "net_00000000000000000000000000000000",
+  engine: "ngspice",
+  mode: "dcSweep",
+  config: { source: "V1", start: 0, stop: 5, step: 0.1 },
+  status: "completed",
+  results: {
+    format: "waveform-v1",
+    signals: [
+      { netId: "net_vout", unit: "V", samples: "s3://.../vout.bin" },
+      { netId: "V1", unit: "V", samples: "s3://.../sweep.bin" },
+    ],
+  },
+  provenance: { source: "mcp-sim-ngspice", at: "2026-07-02T00:00:00Z" },
+};
+
+describe("spec-sync: ngspice ac + dcSweep run examples (issue #36)", () => {
+  it.each([
+    ["ac", acRunExample],
+    ["dcSweep", dcSweepRunExample],
+  ] as const)("the %s run example from the spec doc validates", (_mode, example) => {
+    const result = validateDocument(example);
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+});
