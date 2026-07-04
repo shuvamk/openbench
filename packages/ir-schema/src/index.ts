@@ -22,6 +22,7 @@ export {
   type SchematicInstance,
   type Net,
   type NetConnection,
+  type Probe,
 } from "./schematic";
 export {
   netlistSchema,

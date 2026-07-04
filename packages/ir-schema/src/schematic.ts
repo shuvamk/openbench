@@ -21,7 +21,20 @@ const instanceSchema = z.object({
     .optional(),
 });
 
-/** Optional editor geometry (additive, issue #5). Keys must be declared instanceIds. */
+/**
+ * A scope probe dropped on a net (issue #37). Additive editor geometry only:
+ * `netId` names the probed net, `x`/`y` place the on-canvas marker, and the
+ * optional `color` pins a trace color (else the viewer derives one by index).
+ */
+const probeSchema = z.object({
+  probeId: z.string().min(1),
+  netId: z.string().min(1),
+  x: z.number(),
+  y: z.number(),
+  color: z.string().min(1).optional(),
+});
+
+/** Optional editor geometry (additive, issue #5; probes added in #37). Keys must be declared instanceIds. */
 const layoutSchema = z.object({
   instances: z.record(
     z.object({
@@ -32,6 +45,7 @@ const layoutSchema = z.object({
         .optional(),
     }),
   ),
+  probes: z.array(probeSchema).optional(),
 });
 
 /**
@@ -53,6 +67,7 @@ export type Schematic = z.infer<typeof schematicObjectSchema>;
 export type SchematicInstance = z.infer<typeof instanceSchema>;
 export type Net = z.infer<typeof netSchema>;
 export type NetConnection = z.infer<typeof netConnectionSchema>;
+export type Probe = z.infer<typeof probeSchema>;
 
 export function refineSchematic(schematic: Schematic, ctx: z.RefinementCtx): void {
   const declaredInstances = new Set<string>();
@@ -99,6 +114,15 @@ export function refineSchematic(schematic: Schematic, ctx: z.RefinementCtx): voi
         });
       }
     }
+    (schematic.layout.probes ?? []).forEach((probe, probeIndex) => {
+      if (!seenNetIds.has(probe.netId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["layout", "probes", probeIndex, "netId"],
+          message: `probe references undeclared netId "${probe.netId}"`,
+        });
+      }
+    });
   }
 }
 

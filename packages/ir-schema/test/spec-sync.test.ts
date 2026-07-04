@@ -61,6 +61,7 @@ const schematicExample = {
       R1: { x: 120, y: 80, rotation: 0 },
       U1: { x: 320, y: 160 },
     },
+    probes: [{ probeId: "prb_1", netId: "net_vcc", x: 200, y: 120 }],
   },
   provenance: { source: "kicad-adapter", at: "2026-07-02T00:00:00Z" },
 };
