@@ -323,3 +323,29 @@ boundary (KiCad symbols enter via `mcp-kicad import`, not here). `run_simulation
 now; firmware-in-the-loop co-sim (ADR-0018, was Q3) is gained later by widening its `mode`/`engine`
 enum with no tool-shape change. Two follow-up issues filed: (1) extract `packages/schematic-ops`
 (enabling), (2) implement `packages/mcp-openbench`. Follows ADR-0018.
+
+## ADR-0020 — Scope probes as additive `layout.probes`; click-to-drop, not free-drag (issue #37, 2026-07-05)
+
+**Decision:** Oscilloscope scope-probes are modelled as **additive editor geometry** under
+`schematic.layout.probes?: Array<{ probeId, netId, x, y, color? }>` (patch-level, no
+`irVersion` bump; validation rejects probes whose `netId` is not a declared net). A probe is
+**dropped by arming the "Scope probe" tool in the palette and clicking a net's wire**; the
+`probe.netId` is added to the viewer's active-signal set and a colored on-canvas marker is
+rendered at the click point (click the marker to remove). When any scope-probe exists, the
+waveform viewer plots **only** the probed nets; with none it falls back to plotting every
+decodable signal. Waveform viewer v2 adds two measurement cursors (click cycles A→B→reset),
+per-cursor `(t, V)` readouts, a signed two-cursor Δ readout, and visible-only autoscale — all
+built on pure, node-tested helpers (`lib/sim/cursors.ts`).
+**Rationale:** `layout` is already the home for non-IR-core editor geometry (instance x/y/rotation),
+so probes belong there — engines ignore `layout` on import/export, keeping the change
+round-trip-neutral for every adapter and honoring the issue's "no IR-core break". Click-to-drop
+reuses the existing net hover/hit-testing in `WireLayer` for a tiny, well-tested surface;
+pixel-accurate free-drag from the toolbar onto arbitrary wire segments was **deferred** to keep
+the PR tight and the 528-line `SchematicCanvas` low-risk. The cursor/autoscale math is isolated
+from React so the acceptance criteria (cursor readout, Δ, visible-only autoscale) are unit-tested
+directly rather than through brittle DOM assertions.
+**Consequences:** One additive IR field (documented in `interchange-format.md`; spec-sync fixture
+updated). Instance mutations (`withLayoutEntry`, `deleteSelection`) now preserve `layout.probes`,
+and deleting the components that empty a net prunes that net's dangling probe. Free-drag probe
+placement and probe-driven auto-selection of *which* nets the simulator emits remain follow-ups.
+Follows ADR-0019.
