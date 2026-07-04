@@ -73,6 +73,8 @@ function withLayoutEntry(
   return {
     ...schematic,
     layout: {
+      // Preserve additive layout fields (e.g. scope probes, issue #37).
+      ...schematic.layout,
       instances: {
         ...(schematic.layout?.instances ?? {}),
         [instanceId]: entry,
@@ -228,7 +230,13 @@ export function deleteSelection(schematic: Schematic, instanceIds: string[]): Sc
     for (const [instanceId, entry] of Object.entries(layout.instances)) {
       if (!doomed.has(instanceId)) remaining[instanceId] = entry;
     }
-    layout = { instances: remaining };
+    // Keep probes whose net still exists; drop those left dangling (issue #37).
+    const survivingNets = new Set(nets.map((net) => net.netId));
+    const probes = (layout.probes ?? []).filter((probe) => survivingNets.has(probe.netId));
+    layout = {
+      instances: remaining,
+      ...(probes.length > 0 ? { probes } : {}),
+    };
   }
 
   return { ...schematic, instances, nets, ...(layout ? { layout } : {}) };
