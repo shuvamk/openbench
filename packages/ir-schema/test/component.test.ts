@@ -98,6 +98,32 @@ describe("validateComponent", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.path === "id")).toBe(true);
   });
+
+  it("accepts an optional simModel.subckt .subckt/.ends block (issue #34 additive field)", () => {
+    const doc = clone();
+    const sim = doc.simModel as Record<string, unknown>;
+    sim.template = "X{ref} {p1} {p2} TWOPIN";
+    sim.subckt = ".subckt TWOPIN a b\nR1 a b 1k\n.ends TWOPIN";
+    const result = validateComponent(doc);
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects an empty simModel.subckt string", () => {
+    const doc = clone();
+    (doc.simModel as Record<string, unknown>).subckt = "";
+    const result = validateComponent(doc);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path === "simModel.subckt")).toBe(true);
+  });
+
+  it("rejects a non-string simModel.subckt", () => {
+    const doc = clone();
+    (doc.simModel as Record<string, unknown>).subckt = 42;
+    const result = validateComponent(doc);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path === "simModel.subckt")).toBe(true);
+  });
 });
 
 /**

@@ -199,10 +199,45 @@ const esp32: Component = {
   provenance: fixtureProvenance,
 };
 
+/**
+ * Issue #34 — subcircuit part: an `X{ref} … NAME` call template paired with a
+ * `.subckt … .ends` definition block. Two instances share one block (dedup by
+ * content), mirroring modelCard dedup.
+ */
+const opampIdeal: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_opamp_ideal",
+  name: "Ideal Op-Amp",
+  category: "active",
+  pins: [
+    { id: "inp", name: "IN+", electricalType: "input" },
+    { id: "inn", name: "IN-", electricalType: "input" },
+    { id: "out", name: "OUT", electricalType: "output" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "X{ref} {inp} {inn} {out} OPAMP",
+    subckt: ".subckt OPAMP inp inn out\nEout out 0 inp inn 100k\n.ends OPAMP",
+  },
+  provenance: fixtureProvenance,
+};
+
 const registry = new Map<string, Component>(
-  [resistor, capacitor, vsource, ground, ledRed, ledGreen, pushbutton, parallelPair, ledRgb, esp32].map(
-    (c) => [c.id, c],
-  ),
+  [
+    resistor,
+    capacitor,
+    vsource,
+    ground,
+    ledRed,
+    ledGreen,
+    pushbutton,
+    parallelPair,
+    ledRgb,
+    esp32,
+    opampIdeal,
+  ].map((c) => [c.id, c]),
 );
 const resolve = (id: string): Component | undefined => registry.get(id);
 
@@ -879,5 +914,113 @@ describe("compileNetlist — multi-line templates (issue #21)", () => {
       { instanceId: "cmp_led_rgb", spiceCard: ".model DLED D(IS=1e-14)" },
     ]);
     expect(validateNetlist(result.netlist).valid).toBe(true);
+  });
+});
+
+describe("compileNetlist — subcircuits (.subckt, issue #34)", () => {
+  /** One instance per pin-on-its-own-net; pins map to nodes 1,2,3 in order. */
+  function subcktSchematic(
+    instances: Schematic["instances"],
+    componentPinIds: string[],
+  ): Schematic {
+    let node = 0;
+    const nets = [] as Schematic["nets"];
+    for (const instance of instances) {
+      for (const pinId of componentPinIds) {
+        node += 1;
+        nets.push({
+          netId: `net_${instance.instanceId}_${pinId}`,
+          connections: [{ instanceId: instance.instanceId, pinId }],
+        });
+      }
+    }
+    return makeSchematic({ id: "sch_subckt", instances, nets });
+  }
+
+  it("expands a subckt instance to an X card plus the .subckt block once", () => {
+    const schematic = subcktSchematic(
+      [{ instanceId: "U1", componentId: "cmp_opamp_ideal" }],
+      ["inp", "inn", "out"],
+    );
+    const result = compileNetlist(schematic, resolve, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.warnings).toEqual([]);
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "U1", spiceCard: "XU1 1 2 3 OPAMP" },
+      {
+        instanceId: "cmp_opamp_ideal",
+        spiceCard: ".subckt OPAMP inp inn out\nEout out 0 inp inn 100k\n.ends OPAMP",
+      },
+    ]);
+    expect(validateNetlist(result.netlist).valid).toBe(true);
+  });
+
+  it("dedupes the .subckt block across two instances, emitting two X cards", () => {
+    const schematic = subcktSchematic(
+      [
+        { instanceId: "U1", componentId: "cmp_opamp_ideal" },
+        { instanceId: "U2", componentId: "cmp_opamp_ideal" },
+      ],
+      ["inp", "inn", "out"],
+    );
+    const result = compileNetlist(schematic, resolve, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const xCards = result.netlist.elements.filter((e) => e.spiceCard.startsWith("X"));
+    const subcktBlocks = result.netlist.elements.filter((e) => e.spiceCard.startsWith(".subckt"));
+    expect(xCards).toEqual([
+      { instanceId: "U1", spiceCard: "XU1 1 2 3 OPAMP" },
+      { instanceId: "U2", spiceCard: "XU2 4 5 6 OPAMP" },
+    ]);
+    expect(subcktBlocks).toHaveLength(1);
+    expect(subcktBlocks[0]!.instanceId).toBe("cmp_opamp_ideal");
+  });
+
+  it("maps subckt external nodes to the same SPICE nodes as the pin nets (ground → 0)", () => {
+    const schematic = makeSchematic({
+      id: "sch_opamp_follower",
+      instances: [
+        { instanceId: "U1", componentId: "cmp_opamp_ideal" },
+        { instanceId: "GND1", componentId: "cmp_ground" },
+      ],
+      nets: [
+        { netId: "net_in", name: "IN", connections: [{ instanceId: "U1", pinId: "inp" }] },
+        {
+          netId: "net_fb",
+          name: "GND",
+          connections: [
+            { instanceId: "U1", pinId: "inn" },
+            { instanceId: "GND1", pinId: "p1" },
+          ],
+        },
+        { netId: "net_out", name: "OUT", connections: [{ instanceId: "U1", pinId: "out" }] },
+      ],
+    });
+    const result = compileNetlist(schematic, resolve, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // inn is on the GND net → external node 0; the .subckt body stays untouched.
+    const xCard = result.netlist.elements.find((e) => e.spiceCard.startsWith("X"));
+    expect(xCard!.spiceCard).toBe("XU1 1 0 2 OPAMP");
+  });
+
+  it("a subckt instance with an unconnected pin is a collected error, never a throw", () => {
+    // Only inp/inn are wired; `out` is on no net → the X card cannot resolve it.
+    const schematic = makeSchematic({
+      id: "sch_opamp_floating",
+      instances: [{ instanceId: "U1", componentId: "cmp_opamp_ideal" }],
+      nets: [
+        { netId: "net_inp", connections: [{ instanceId: "U1", pinId: "inp" }] },
+        { netId: "net_inn", connections: [{ instanceId: "U1", pinId: "inn" }] },
+      ],
+    });
+    let result!: ReturnType<typeof compileNetlist>;
+    expect(() => {
+      result = compileNetlist(schematic, resolve, { now: NOW });
+    }).not.toThrow();
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.some((e) => e.message.includes("not connected"))).toBe(true);
   });
 });
