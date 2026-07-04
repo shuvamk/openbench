@@ -29,7 +29,7 @@ export {
 } from "./mutations";
 export { activeProbeNetIds, addProbe, isNetProbed, removeProbe } from "./probes";
 
-export type EditorTool = "select" | "place" | "wire";
+export type EditorTool = "select" | "place" | "wire" | "probe";
 
 export interface WireDraft {
   from: { instanceId: string; pinId: string };
