@@ -25,3 +25,44 @@ export const rcNetlist: Netlist = {
 };
 
 export const transientConfig = { duration: "10ms", step: "1us" };
+
+/**
+ * A purely-resistive 2:1 divider (issue #36): V1 drives R1 (top) into R2
+ * (bottom) at net_vout, giving vout = vin/2. Used by the DC-sweep tests where
+ * the transfer curve must be linear with a known slope.
+ */
+export const dividerNetlist: Netlist = {
+  irVersion: "0.1.0",
+  kind: "netlist",
+  id: "net_fixture_divider",
+  schematicId: "sch_fixture_divider",
+  nodes: [
+    { netId: "net_vin", spiceNode: "1" },
+    { netId: "net_vout", spiceNode: "2" },
+    { netId: "net_gnd", spiceNode: "0" },
+  ],
+  elements: [
+    { instanceId: "V1", spiceCard: "V1 1 0 DC 5" },
+    { instanceId: "R1", spiceCard: "R1 1 2 1k" },
+    { instanceId: "R2", spiceCard: "R2 2 0 1k" },
+  ],
+  derivedBy: "netlist-compiler@0.1.0",
+  provenance: { source: "ir-core", at: "2026-07-02T00:00:00Z" },
+};
+
+/** Issue #36 AC/DC-sweep deck configs (see .context/interchange-format.md). */
+export const acConfig = {
+  mode: "ac" as const,
+  sweep: "dec" as const,
+  points: 10,
+  fStart: "1",
+  fStop: "1meg",
+};
+
+export const dcSweepConfig = {
+  mode: "dcSweep" as const,
+  source: "V1",
+  start: 0,
+  stop: 5,
+  step: 0.1,
+};

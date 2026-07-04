@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MockBackend } from "../src/backend";
 import { runSimulation } from "../src/index";
 import { decodeSamples } from "../src/samples";
-import { rcNetlist } from "./fixture";
+import { acConfig, dcSweepConfig, dividerNetlist, rcNetlist } from "./fixture";
 
 const config = { mode: "transient" as const, duration: "10ms", step: "1us" };
 const NOW = "2026-07-02T12:00:00Z";
@@ -106,6 +106,108 @@ describe("runSimulation (MockBackend)", () => {
     );
     expect(run.status).toBe("failed");
     expect(run.logs).toBeDefined();
+    expect(validateSimulationRun(run).valid).toBe(true);
+  });
+});
+
+/**
+ * Acceptance (issue #36): AC-mode simulationRun documents carry magnitude (dB)
+ * and phase (deg) signals over a frequency (Hz) x-axis, and validate.
+ */
+describe("runSimulation — AC analysis (MockBackend)", () => {
+  it("emits per-net dB + deg signals plus a frequency axis, and validates", async () => {
+    const run = await runSimulation(
+      rcNetlist,
+      { ...acConfig, probes: ["net_vout"] },
+      new MockBackend(),
+      { now: NOW },
+    );
+    expect(run.status).toBe("completed");
+    expect(run.mode).toBe("ac");
+    expect(run.config).toEqual({ sweep: "dec", points: 10, fStart: "1", fStop: "1meg" });
+    expect(validateSimulationRun(run).valid).toBe(true);
+
+    const signals = run.results!.signals;
+    const mag = signals.find((s) => s.netId === "net_vout" && s.unit === "dB");
+    const phase = signals.find((s) => s.netId === "net_vout" && s.unit === "deg");
+    const freq = signals.find((s) => s.netId === "frequency");
+    expect(mag).toBeDefined();
+    expect(phase).toBeDefined();
+    expect(freq).toBeDefined();
+    expect(freq!.unit).toBe("Hz");
+    // No time axis in an AC run.
+    expect(signals.some((s) => s.netId === "time")).toBe(false);
+
+    // -3 dB corner recoverable from the decoded Bode (RC = 1k·1u ≈ 159 Hz).
+    const f = decodeSamples(freq!.samples);
+    const m = decodeSamples(mag!.samples);
+    let corner = NaN;
+    for (let i = 1; i < m.length; i++) {
+      if (m[i - 1]! >= -3.0103 && m[i]! < -3.0103) {
+        const t = (-3.0103 - m[i - 1]!) / (m[i]! - m[i - 1]!);
+        corner = 10 ** (Math.log10(f[i - 1]!) + t * (Math.log10(f[i]!) - Math.log10(f[i - 1]!)));
+        break;
+      }
+    }
+    expect(corner).toBeGreaterThan(150);
+    expect(corner).toBeLessThan(170);
+  });
+
+  it("fails (not throws) when fStop < fStart", async () => {
+    const run = await runSimulation(
+      rcNetlist,
+      { ...acConfig, fStart: "1meg", fStop: "1" },
+      new MockBackend(),
+      { now: NOW },
+    );
+    expect(run.status).toBe("failed");
+    expect(run.results).toBeUndefined();
+    expect(validateSimulationRun(run).valid).toBe(true);
+  });
+});
+
+/**
+ * Acceptance (issue #36): DC-sweep simulationRun documents put the swept
+ * variable on the x-axis (not time), and validate.
+ */
+describe("runSimulation — DC sweep (MockBackend)", () => {
+  it("emits an output signal plus the swept-source axis (netId V1, not time)", async () => {
+    const run = await runSimulation(
+      dividerNetlist,
+      { ...dcSweepConfig, probes: ["net_vout"] },
+      new MockBackend(),
+      { now: NOW },
+    );
+    expect(run.status).toBe("completed");
+    expect(run.mode).toBe("dcSweep");
+    expect(run.config).toEqual({ source: "V1", start: 0, stop: 5, step: 0.1 });
+    expect(validateSimulationRun(run).valid).toBe(true);
+
+    const signals = run.results!.signals;
+    expect(signals.some((s) => s.netId === "time")).toBe(false);
+    const sweep = signals.find((s) => s.netId === "V1");
+    expect(sweep).toBeDefined();
+    expect(sweep!.unit).toBe("V");
+    const out = signals.find((s) => s.netId === "net_vout");
+    expect(out).toBeDefined();
+
+    // Linear transfer vout = 0.5·vin over the sweep.
+    const x = decodeSamples(sweep!.samples);
+    const y = decodeSamples(out!.samples);
+    expect(x[0]).toBeCloseTo(0, 9);
+    expect(x[x.length - 1]).toBeCloseTo(5, 9);
+    for (let i = 0; i < x.length; i++) expect(y[i]!).toBeCloseTo(0.5 * x[i]!, 6);
+  });
+
+  it("fails (not throws) when step is 0", async () => {
+    const run = await runSimulation(
+      dividerNetlist,
+      { ...dcSweepConfig, step: 0 },
+      new MockBackend(),
+      { now: NOW },
+    );
+    expect(run.status).toBe("failed");
+    expect(run.results).toBeUndefined();
     expect(validateSimulationRun(run).valid).toBe(true);
   });
 });
