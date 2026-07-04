@@ -6,6 +6,7 @@ import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { HStack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { buildPolylinePoints, formatSi, niceTicks, scaleLinear } from "../../lib/sim/scale";
+import { autoscaleDomain, cursorDelta, cursorReadout } from "../../lib/sim/cursors";
 
 export interface WaveformTrace {
   /** Stable id (the signal's netId). */
@@ -73,29 +74,19 @@ export function WaveformViewer({
   };
 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  /** Measurement cursors as sample indices; click cycles 1 → 2 → reset to 1. */
+  const [cursors, setCursors] = useState<number[]>([]);
 
   const visible = traces.filter((trace) => !hidden.includes(trace.id));
 
   const domains = useMemo(() => {
     if (!time || time.length === 0) return null;
     const xDomain: [number, number] = [time[0]!, time[time.length - 1]!];
-    let min = Infinity;
-    let max = -Infinity;
-    for (const trace of visible) {
-      const length = Math.min(trace.values.length, time.length);
-      for (let i = 0; i < length; i++) {
-        const v = trace.values[i]!;
-        if (v < min) min = v;
-        if (v > max) max = v;
-      }
-    }
-    if (min === Infinity) {
-      min = 0;
-      max = 1;
-    }
-    return { xDomain, yDomain: [min, max] as [number, number] };
+    // Autoscale: fit the min/max of the *visible* traces only.
+    const yDomain = autoscaleDomain(visible, hidden, time.length);
+    return { xDomain, yDomain };
     // visible identity changes with traces/hidden, which is what we want.
-  }, [time, visible.map((t) => t.id).join("|"), traces]);
+  }, [time, visible.map((t) => t.id).join("|"), hidden.join("|"), traces]);
 
   if (!time || time.length === 0 || traces.length === 0) {
     return (
@@ -123,11 +114,21 @@ export function WaveformViewer({
   const xTicks = niceTicks(xDomain[0], xDomain[1], 6);
   const yTicks = niceTicks(yDomain[0], yDomain[1], 4);
 
-  const onPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+  const eventToIndex = (event: React.PointerEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const fraction = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
     const scaled = ((fraction * W - PLOT.x) / PLOT.width) * (time.length - 1);
-    setHoverIndex(Math.max(0, Math.min(time.length - 1, Math.round(scaled))));
+    return Math.max(0, Math.min(time.length - 1, Math.round(scaled)));
+  };
+
+  const onPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    setHoverIndex(eventToIndex(event));
+  };
+
+  // Click cycles measurement cursors: place A, then B, then reset to a fresh A.
+  const onClick = (event: React.MouseEvent<SVGSVGElement>) => {
+    const index = eventToIndex(event);
+    setCursors((prev) => (prev.length >= 2 ? [index] : [...prev, index]));
   };
 
   const hoverTime = hoverIndex !== null ? time[hoverIndex] : undefined;
@@ -138,9 +139,10 @@ export function WaveformViewer({
         data-testid="waveform-svg"
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="none"
-        style={{ width: "100%", flex: 1, minHeight: 0, display: "block" }}
+        style={{ width: "100%", flex: 1, minHeight: 0, display: "block", cursor: "crosshair" }}
         onPointerMove={onPointerMove}
         onPointerLeave={() => setHoverIndex(null)}
+        onClick={onClick}
       >
         {/* Plot frame */}
         <rect
@@ -214,6 +216,27 @@ export function WaveformViewer({
             strokeDasharray="3 3"
           />
         )}
+
+        {/* Measurement cursors (solid, labelled A/B). */}
+        {cursors.map((index, cursorIndex) => (
+          <g key={cursorIndex} data-testid={`waveform-cursor-${cursorIndex}`}>
+            <line
+              x1={sx(time[index]!)}
+              x2={sx(time[index]!)}
+              y1={PLOT.y}
+              y2={PLOT.y + PLOT.height}
+              stroke="var(--ob-net-highlight)"
+              strokeWidth={1}
+            />
+            <text
+              x={sx(time[index]!) + 3}
+              y={PLOT.y + 10}
+              style={{ ...AXIS_TEXT, fill: "var(--ob-net-highlight)" }}
+            >
+              {cursorIndex === 0 ? "A" : "B"}
+            </text>
+          </g>
+        ))}
       </svg>
 
       {/* Legend + hover readout */}
@@ -260,6 +283,43 @@ export function WaveformViewer({
           )}
         </span>
       </div>
+
+      {/* Measurement cursor readouts + two-cursor delta. */}
+      {cursors.length > 0 && (
+        <div
+          data-testid="waveform-cursor-readout"
+          style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}
+        >
+          {cursors.map((index, cursorIndex) => (
+            <Text key={cursorIndex} type="supporting" color="secondary">
+              {`${cursorIndex === 0 ? "A" : "B"}  t = ${formatSi(
+                cursorReadout(time, visible[0]?.values ?? time, index).t,
+              )}s  ·  ${visible
+                .map(
+                  (trace) =>
+                    `${trace.label} ${formatSi(cursorReadout(time, trace.values, index).value)}${
+                      trace.unit
+                    }`,
+                )
+                .join("  ·  ")}`}
+            </Text>
+          ))}
+          {cursors.length === 2 && (
+            <span key="delta" data-testid="waveform-delta-readout">
+              <Text type="supporting" color="secondary">
+                {`Δt = ${formatSi(
+                  cursorDelta(time, time, cursors[0]!, cursors[1]!).dt,
+                )}s  ·  ${visible
+                  .map((trace) => {
+                    const { dv } = cursorDelta(time, trace.values, cursors[0]!, cursors[1]!);
+                    return `Δ${trace.label} ${formatSi(dv)}${trace.unit}`;
+                  })
+                  .join("  ·  ")}`}
+              </Text>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { clampZoom, useEditorStore, type Point } from "../../lib/editor/store";
 import { useLiveStore } from "../../lib/live/store";
 import { LiveOverlays, LiveSliderPopover } from "./LiveOverlays";
 import { SymbolGlyph } from "./symbols";
+import { traceColor } from "../sim/WaveformViewer";
 
 /**
  * The schematic canvas: an SVG surface with a dotted grid, pan/zoom,
@@ -77,6 +78,16 @@ export function SchematicCanvas() {
       return { x: (x - p.x) / z, y: (y - p.y) / z };
     },
     [],
+  );
+
+  // Probe tool: clicking a net's wire drops a scope probe at the click point.
+  const onNetClick = useCallback(
+    (netId: string, e: React.MouseEvent) => {
+      if (useEditorStore.getState().tool !== "probe") return;
+      e.stopPropagation();
+      useEditorStore.getState().addProbe(netId, clientToWorld(e.clientX, e.clientY));
+    },
+    [clientToWorld],
   );
 
   // Wheel zoom (zoom-to-cursor). Attached manually so preventDefault works.
@@ -311,12 +322,16 @@ export function SchematicCanvas() {
               selectedNetIds={selectedNetIds}
               hoveredNet={hoveredNet}
               onHoverNet={setHoveredNet}
+              probeArmed={tool === "probe"}
+              onNetClick={onNetClick}
             />
           )}
 
           {schematic && wireDraft && (
             <DraftWire schematic={schematic} draft={wireDraft} />
           )}
+
+          {schematic && <ProbeMarkers schematic={schematic} />}
 
           {schematic?.instances.map((instance) => {
             const component = getComponent(instance.componentId);
@@ -465,11 +480,15 @@ function WireLayer({
   selectedNetIds,
   hoveredNet,
   onHoverNet,
+  probeArmed,
+  onNetClick,
 }: {
   schematic: Schematic;
   selectedNetIds: Set<string>;
   hoveredNet: string | null;
   onHoverNet: (netId: string | null) => void;
+  probeArmed: boolean;
+  onNetClick: (netId: string, e: React.MouseEvent) => void;
 }) {
   return (
     <g>
@@ -492,10 +511,55 @@ function WireLayer({
                 strokeWidth={highlighted || hovered ? 2.5 : 1.5}
                 strokeLinejoin="round"
                 strokeLinecap="round"
+                style={probeArmed ? { cursor: "crosshair" } : undefined}
                 onPointerEnter={() => onHoverNet(net.netId)}
                 onPointerLeave={() => onHoverNet(null)}
+                onClick={(e) => onNetClick(net.netId, e)}
               />
             ))}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/**
+ * Scope-probe markers (issue #37): a colored dot per probe at its stored
+ * `layout` position, labelled with the net name. Clicking a marker removes it.
+ */
+function ProbeMarkers({ schematic }: { schematic: Schematic }) {
+  const probes = schematic.layout?.probes ?? [];
+  if (probes.length === 0) return null;
+  const nameByNetId = new Map(schematic.nets.map((net) => [net.netId, net.name ?? net.netId]));
+  return (
+    <g>
+      {probes.map((probe, index) => {
+        const color = probe.color ?? traceColor(index);
+        return (
+          <g
+            key={probe.probeId}
+            data-probe-id={probe.probeId}
+            transform={`translate(${probe.x}, ${probe.y})`}
+            style={{ cursor: "pointer" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              useEditorStore.getState().removeProbe(probe.probeId);
+            }}
+          >
+            <circle r={5} fill={color} stroke="var(--ob-canvas-bg)" strokeWidth={1.5} />
+            <circle r={9} fill="none" stroke={color} strokeWidth={1} opacity={0.6} />
+            <text
+              x={11}
+              y={4}
+              style={{
+                fontSize: 10,
+                fontFamily: "var(--font-family-body, sans-serif)",
+                fill: color,
+              }}
+            >
+              {nameByNetId.get(probe.netId) ?? probe.netId}
+            </text>
           </g>
         );
       })}

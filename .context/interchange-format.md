@@ -82,7 +82,12 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
     "instances": {
       "R1": { "x": 120, "y": 80, "rotation": 0 },   // rotation: 0 | 90 | 180 | 270
       "U1": { "x": 320, "y": 160 }
-    }
+    },
+    // scope probes (issue #37): netId must be a declared net; x/y place the
+    // on-canvas marker; color is optional (viewer derives one by index otherwise)
+    "probes": [
+      { "probeId": "prb_1", "netId": "net_vcc", "x": 200, "y": 120 }
+    ]
   },
   "provenance": { "source": "kicad-adapter", "at": "<iso8601>" }
 }
@@ -297,3 +302,10 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
     "provenance": { "source": "mcp-sim-ngspice", "at": "<iso8601>" }
   }
   ```
+- **2026-07-05** — issue #37, one ADDITIVE, patch-level field (no `irVersion`
+  bump; ir-schema-guard: optional additions are non-breaking):
+  `schematic.layout.probes?: Array<{ probeId, netId, x, y, color? }>` — scope
+  probes dropped on nets. Editor geometry only; `netId` must be a declared net
+  (error path `layout.probes.<i>.netId`), `x`/`y` place the on-canvas marker,
+  `color` optionally pins a trace color. Adapters ignore `layout` on
+  import/export, so this is round-trip-neutral for every engine.

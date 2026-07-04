@@ -10,6 +10,7 @@ import {
   setParameterOverride,
   type Point,
 } from "./mutations";
+import { addProbe as addProbeMutation, removeProbe as removeProbeMutation } from "./probes";
 
 // Pure mutation helpers are re-exported so tests (and the sim/panel agents)
 // can drive schematic edits without going through the store singleton.
@@ -26,8 +27,9 @@ export {
   type PlaceResult,
   type Point,
 } from "./mutations";
+export { activeProbeNetIds, addProbe, isNetProbed, removeProbe } from "./probes";
 
-export type EditorTool = "select" | "place" | "wire";
+export type EditorTool = "select" | "place" | "wire" | "probe";
 
 export interface WireDraft {
   from: { instanceId: string; pinId: string };
@@ -99,6 +101,10 @@ export interface EditorState {
     parameterName: string,
     value: number | string | boolean | undefined,
   ): void;
+  /** Drop a scope probe on a net; snaps the marker and records history (issue #37). */
+  addProbe(netId: string, position: Point, color?: string): void;
+  /** Remove a scope probe by id. */
+  removeProbe(probeId: string): void;
   renameProject(name: string): void;
 
   undo(): void;
@@ -267,6 +273,18 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const bundle = get().bundle;
       if (!bundle) return;
       commitSchematic(setParameterOverride(bundle.schematic, instanceId, parameterName, value));
+    },
+
+    addProbe(netId, position, color) {
+      const bundle = get().bundle;
+      if (!bundle) return;
+      commitSchematic(addProbeMutation(bundle.schematic, netId, position, color));
+    },
+
+    removeProbe(probeId) {
+      const bundle = get().bundle;
+      if (!bundle) return;
+      commitSchematic(removeProbeMutation(bundle.schematic, probeId));
     },
 
     renameProject(name) {

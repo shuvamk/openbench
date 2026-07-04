@@ -245,6 +245,20 @@ describe("bundle export/import", () => {
     expect(parsed.bundle).toEqual(bundle);
   });
 
+  it("round-trips schematic.layout.probes through serialize/parse (issue #37)", () => {
+    const bundle = createFromTemplate("rc-lowpass", "Probed");
+    bundle.schematic.layout = {
+      ...(bundle.schematic.layout ?? { instances: {} }),
+      probes: [{ probeId: "prb_1", netId: "net_vout", x: 200, y: 120 }],
+    };
+    const parsed = parseBundle(serializeBundle(bundle));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.bundle.schematic.layout?.probes).toEqual([
+      { probeId: "prb_1", netId: "net_vout", x: 200, y: 120 },
+    ]);
+  });
+
   it("rejects non-JSON input with { path, message } errors", () => {
     const parsed = parseBundle("not json at all");
     expect(parsed.ok).toBe(false);

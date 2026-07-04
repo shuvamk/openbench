@@ -28,6 +28,7 @@ function groupByCategory(components: Component[]): Array<[string, Component[]]> 
 export function Palette() {
   const setTool = useEditorStore((s) => s.setTool);
   const placingComponentId = useEditorStore((s) => s.placingComponentId);
+  const tool = useEditorStore((s) => s.tool);
   const [query, setQuery] = useState("");
 
   const groups = useMemo(
@@ -47,6 +48,24 @@ export function Palette() {
       }}
     >
       <VStack gap={4}>
+        <Text type="label" color="secondary">
+          Instruments
+        </Text>
+        <ClickableCard
+          label="Scope probe"
+          padding={1.5}
+          variant={tool === "probe" ? "blue" : "transparent"}
+          onClick={() => setTool("probe")}
+        >
+          <HStack gap={2} vAlign="center">
+            <StackItem size="fill">
+              <Text type="body">🔬 Scope probe</Text>
+            </StackItem>
+          </HStack>
+        </ClickableCard>
+        <Text type="supporting" color="secondary">
+          Then click a wire to watch that net in the waveform viewer.
+        </Text>
         <Text type="label" color="secondary">
           Components
         </Text>
