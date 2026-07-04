@@ -7,7 +7,13 @@ import {
 import type { ProjectBundle } from "./project-store/types";
 
 /** Starter templates offered by the "New project" dialog. */
-export type TemplateKind = "blank" | "rc-lowpass" | "esp32-blink" | "playground";
+export type TemplateKind =
+  | "blank"
+  | "rc-lowpass"
+  | "esp32-blink"
+  | "playground"
+  | "half-wave-rectifier"
+  | "rlc-ringing";
 
 const stamp = (): Provenance => ({
   source: "frontend",
@@ -229,12 +235,189 @@ const playgroundContent = (): SchematicContent => ({
   },
 });
 
+/**
+ * Half-wave rectifier — the canonical AC→DC demo, showcasing the batch-3 parts.
+ * V1 (5V 1kHz sine) → D1 (Schottky, low drop) → VOUT, smoothed by C1 (10µF)
+ * across the RL (1kΩ) load, returning to GND. A transient run shows the sine's
+ * negative half chopped off and the cap holding VOUT up between peaks; in the
+ * live view VOUT visibly ripples. Uses the SIN source + Schottky diode added in
+ * the fundamental-parts batch 3.
+ */
+const halfWaveRectifierContent = (): SchematicContent => ({
+  instances: [
+    { instanceId: "V1", componentId: "cmp_vsource_sin" },
+    { instanceId: "D1", componentId: "cmp_schottky_diode" },
+    {
+      instanceId: "C1",
+      componentId: "cmp_capacitor_generic",
+      parameterOverrides: { capacitance: 10e-6 },
+    },
+    {
+      instanceId: "RL",
+      componentId: "cmp_resistor_generic",
+      parameterOverrides: { resistance: 1000 },
+    },
+    { instanceId: "GND1", componentId: "cmp_ground" },
+  ],
+  nets: [
+    {
+      netId: "net_ac",
+      name: "AC",
+      connections: [
+        { instanceId: "V1", pinId: "pos" },
+        { instanceId: "D1", pinId: "a" },
+      ],
+    },
+    {
+      netId: "net_vout",
+      name: "VOUT",
+      connections: [
+        { instanceId: "D1", pinId: "k" },
+        { instanceId: "C1", pinId: "p1" },
+        { instanceId: "RL", pinId: "p1" },
+      ],
+    },
+    {
+      netId: "net_gnd",
+      name: "GND",
+      connections: [
+        { instanceId: "C1", pinId: "p2" },
+        { instanceId: "RL", pinId: "p2" },
+        { instanceId: "V1", pinId: "neg" },
+        { instanceId: "GND1", pinId: "gnd" },
+      ],
+    },
+  ],
+  layout: {
+    instances: {
+      V1: { x: 120, y: 180, rotation: 0 },
+      D1: { x: 300, y: 100, rotation: 0 },
+      C1: { x: 460, y: 180, rotation: 0 },
+      RL: { x: 620, y: 180, rotation: 90 },
+      GND1: { x: 380, y: 320, rotation: 0 },
+    },
+  },
+});
+
+/**
+ * Series RLC step response — the textbook demo for the batch-3 inductor.
+ * V1 (0→5V pulse) → R1 (10Ω) → L1 (1mH) → C1 (1µF) → GND, output taken across
+ * the cap. Underdamped (Q≈3, f₀≈5kHz), so each pulse edge sets VOUT ringing and
+ * decaying — the classic damped sinusoid you can't get without an inductor.
+ */
+const rlcRingingContent = (): SchematicContent => ({
+  instances: [
+    { instanceId: "V1", componentId: "cmp_vsource_pulse" },
+    {
+      instanceId: "R1",
+      componentId: "cmp_resistor_generic",
+      parameterOverrides: { resistance: 10 },
+    },
+    {
+      instanceId: "L1",
+      componentId: "cmp_inductor_generic",
+      parameterOverrides: { inductance: 1e-3 },
+    },
+    {
+      instanceId: "C1",
+      componentId: "cmp_capacitor_generic",
+      parameterOverrides: { capacitance: 1e-6 },
+    },
+    { instanceId: "GND1", componentId: "cmp_ground" },
+  ],
+  nets: [
+    {
+      netId: "net_vin",
+      name: "VIN",
+      connections: [
+        { instanceId: "V1", pinId: "pos" },
+        { instanceId: "R1", pinId: "p1" },
+      ],
+    },
+    {
+      netId: "net_rl",
+      name: "RL",
+      connections: [
+        { instanceId: "R1", pinId: "p2" },
+        { instanceId: "L1", pinId: "p1" },
+      ],
+    },
+    {
+      netId: "net_vout",
+      name: "VOUT",
+      connections: [
+        { instanceId: "L1", pinId: "p2" },
+        { instanceId: "C1", pinId: "p1" },
+      ],
+    },
+    {
+      netId: "net_gnd",
+      name: "GND",
+      connections: [
+        { instanceId: "C1", pinId: "p2" },
+        { instanceId: "V1", pinId: "neg" },
+        { instanceId: "GND1", pinId: "gnd" },
+      ],
+    },
+  ],
+  layout: {
+    instances: {
+      V1: { x: 120, y: 180, rotation: 0 },
+      R1: { x: 280, y: 100, rotation: 90 },
+      L1: { x: 440, y: 100, rotation: 90 },
+      C1: { x: 600, y: 180, rotation: 0 },
+      GND1: { x: 360, y: 320, rotation: 0 },
+    },
+  },
+});
+
 const contentByKind: Record<TemplateKind, () => SchematicContent> = {
   blank: blankContent,
   "rc-lowpass": rcLowpassContent,
   "esp32-blink": esp32BlinkContent,
   playground: playgroundContent,
+  "half-wave-rectifier": halfWaveRectifierContent,
+  "rlc-ringing": rlcRingingContent,
 };
+
+/**
+ * Single source of truth for the "New project" template picker. Keeping the
+ * option list here (next to `contentByKind`) rather than inline in the projects
+ * page guarantees every buildable kind is offered — the templates test asserts
+ * these stay in lockstep, which caught the playground drifting out of the UI.
+ */
+export const TEMPLATE_OPTIONS: {
+  value: TemplateKind;
+  label: string;
+  description: string;
+}[] = [
+  { value: "blank", label: "Blank", description: "An empty bench to build from scratch." },
+  {
+    value: "rc-lowpass",
+    label: "RC low-pass filter",
+    description: "A pulse source charging an RC network — watch VOUT ramp.",
+  },
+  {
+    value: "half-wave-rectifier",
+    label: "Half-wave rectifier",
+    description: "AC→DC: a sine source, Schottky diode and smoothing cap.",
+  },
+  {
+    value: "rlc-ringing",
+    label: "RLC ringing",
+    description: "A series R-L-C that rings and decays on each pulse edge.",
+  },
+  {
+    value: "esp32-blink",
+    label: "ESP32 blink",
+    description: "An ESP32 driving an LED through a current-limiting resistor.",
+  },
+  {
+    value: "playground",
+    label: "Interactive playground",
+    description: "Button, dimmer and motor branches to click in the live view.",
+  },
+];
 
 /** Build a fresh, valid ProjectBundle from a starter template. */
 export function createFromTemplate(kind: TemplateKind, name: string): ProjectBundle {

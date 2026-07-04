@@ -193,6 +193,28 @@ template/id); acceptable since instance ids stay unique per schematic. Op-amps a
 `.subckt`-based parts remain deferred until the netlist compiler grows subcircuit support
 (open question Q3).
 
+## ADR-0015 — Batch-3 parts get demos + a searchable palette (2026-07-03)
+
+**Decision:** On top of the batch-3 registry parts (ADR-0014), ship the app-layer
+work that makes them usable: three new starter templates — `half-wave-rectifier`
+(SIN + Schottky + smoothing cap), `rlc-ringing` (series R-L-C step response,
+exercises the inductor), and exposing the pre-existing `playground` template that
+had been buildable but missing from the New-project picker — plus a keyboard-first
+search box on the component palette (new `lib/editor/palette-filter`, tokenised
+case-insensitive match over name/category/id).
+**Rationale:** New parts with no demo circuit and a 26-item palette with no filter
+are half-finished from a UX-first standpoint. The template picker's option list was
+also duplicated inline in the projects page, which is exactly how `playground`
+silently drifted out of the UI — so `TEMPLATE_OPTIONS` now lives in `templates.ts`
+as the single source of truth, guarded by a drift test asserting every buildable
+kind is offered exactly once.
+**Consequences:** This work lives on `feat/editor-ux-refinements`, branched off the
+batch-3 tip (it depends on the SIN/Schottky/inductor parts existing). A concurrent
+agent had committed batch-3 to `feat/fundamental-parts-batch3`; a near-identical
+duplicate commit of mine was rebased out so the shared branch stays linear —
+`0dbbdd7` (test) then `7286217` (feat) are the other agent's, everything after is UX.
+No IR/compiler/API change, so `context-freshness` isn't triggered.
+
 ## ADR-0016 — ERC engine heuristics (issue #35, 2026-07-04)
 
 **Decision:** `packages/erc` is a new pure package (`checkSchematic(schematic,
@@ -209,7 +231,7 @@ and inspector can call cheaply before spending a sim run. Keeping it a pure IR c
 (no IR/schema change, injected resolver like the netlist compiler) means zero migration
 risk and no coupling to the registry. The structural source-detection avoids a brittle
 allow-list as the registry grows.
-**Consequences:** New numbered ADR is **0016**, leaving 0015 for the parallel
-editor-UX branch's in-flight ADR (avoids a merge collision). ERC has no UI yet — a
+**Consequences:** ADR **0016** follows ADR-0015 (the parallel editor-UX branch's ADR),
+which merged to `main` first; kept in numeric order on the merge. ERC has no UI yet — a
 follow-up frontend issue surfaces violations in the inspector. Rules are additive: new
 codes (`ERC_*`) can land without breaking existing consumers.
