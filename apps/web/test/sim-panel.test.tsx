@@ -10,6 +10,7 @@ import { createFromTemplate } from "../lib/templates";
 import type { ProjectBundle } from "../lib/project-store/types";
 import {
   __setProjectStoreModuleLoaderForTests,
+  addProbe,
   resetEditorState,
   useEditorStore,
   type ProjectStoreLike,
@@ -203,6 +204,22 @@ describe("SimPanel", () => {
     expect(run.hasAttribute("disabled") || run.getAttribute("aria-disabled") === "true").toBe(
       true,
     );
+  });
+
+  it("scope probes drive which signals the viewer plots", async () => {
+    seedEditor((bundle) => {
+      bundle.schematic = addProbe(bundle.schematic, "net_vout", { x: 200, y: 120 });
+    });
+    const { container } = render(withTheme(<SimPanel />));
+    fireEvent.click(screen.getByRole("button", { name: "Run simulation" }));
+    await waitFor(() => {
+      expect(useSimStore.getState().status).toBe("completed");
+    });
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="waveform-trace-net_vout"]')).not.toBeNull();
+    });
+    // With a probe on net_vout only, net_vin is not an active signal.
+    expect(container.querySelector('[data-testid="waveform-trace-net_vin"]')).toBeNull();
   });
 
   it("Run executes a simulation and plots decodable signals", async () => {
