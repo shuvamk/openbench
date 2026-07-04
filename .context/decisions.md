@@ -257,3 +257,34 @@ component schema; malformed *wiring* (an unconnected subckt pin) is a collected 
 error, never a throw. The `subckt` body itself is not validated (opaque). This unblocks
 issue #44 (op-amp, NE555, 74xx, 7-seg) — those parts are now expressible with no further
 compiler work. Follows ADR-0016.
+
+## ADR-0018 — Firmware-in-the-loop GPIO bridge: GDB-poll + PWL-source-per-net (spike #29, 2026-07-04)
+
+**Decision:** The ESP32 firmware → circuit bridge (the last open Phase-1 loop) observes
+GPIO state by **polling the emulator's memory-mapped GPIO registers over the stock
+qemu-system-xtensa GDB stub** (`-s`), and injects each firmware-driven pin into the netlist
+as a **piecewise-linear (PWL) voltage source on that pin's net**. Espressif QEMU exposes no
+first-class GPIO-introspection API, so `GPIO_OUT_REG` (`0x3FF44004`) + `GPIO_ENABLE_REG`
+(`0x3FF44020`) — and their `…1_REG` counterparts for GPIO 32–39 — are read directly at a
+10–30 Hz cadence matched to the live view. Output direction only (firmware drives the
+circuit); the reverse (`GPIO_IN_REG` writes for `digitalRead`/ADC, lockstep co-sim) is
+deferred. The GPIO→net binding is **derived from the schematic's `cmp_esp32_devkit`
+pin→net connections** — no new IR field. Full design finding:
+`.context/firmware-in-the-loop.md`.
+**Rationale:** GDB memory-polling is the only observation option that is non-invasive to
+user firmware, needs no custom QEMU build, and depends on no unstable trace-log surface
+(the alternatives — QMP memory reads, GPIO trace-event parsing, and firmware-side UART
+instrumentation — each fail one of those). PWL-per-net reuses the entire existing stack
+(netlist-compiler source handling, ngspice transient, the `derive.ts` live renderer, ADR-0013)
+— the consumer side is unchanged; GPIO-driven nets simply gain a source. Sampling (vs.
+event-accuracy) is acceptable because the consumer is the *live view*, not a signed-off
+timing run; a future GDB-watchpoint mode can restore edge-accuracy without changing the
+consumer. Resolves open question **Q3**.
+**Consequences:** No IR/schema change in this spike (research only) — `simulationRun.engine`
+already reserves `"qemu"`; a firmware-in-the-loop run is a `qemu`-engine `simulationRun`
+(mode `"live"`). Four follow-up issues are enumerated in the finding: (1) QEMU GDB-RSP
+register poller, (2) GPIO→net→PWL translator, (3) frontend live-firmware mode wiring the
+poll→PWL→ngspice→derive loop, (4) a Direction-B lockstep spike for `GPIO_IN`/ADC injection.
+Items 1–3 close the Phase-1.5 loop; item 4 opens the Phase-2 bidirectional door. Drive
+constants (`VOH=3.3 V`, `Rout≈30 Ω`, ~1 µs edge ramp) are documented bridge approximations
+consistent with ADR-0013. Follows ADR-0017.
