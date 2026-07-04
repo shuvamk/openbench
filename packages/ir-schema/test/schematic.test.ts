@@ -143,4 +143,41 @@ describe("validateSchematic", () => {
       true,
     );
   });
+
+  it("accepts scope probes in the layout referencing declared nets (issue #37)", () => {
+    const doc = clone();
+    doc.layout = {
+      instances: { R1: { x: 120, y: 80, rotation: 0 } },
+      probes: [
+        { probeId: "prb_1", netId: "net_vcc", x: 200, y: 120 },
+        { probeId: "prb_2", netId: "net_vcc", x: 240, y: 90, color: "var(--ob-net-highlight)" },
+      ],
+    };
+    const result = validateSchematic(doc);
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects a probe referencing an undeclared netId (issue #37)", () => {
+    const doc = clone();
+    doc.layout = {
+      instances: {},
+      probes: [{ probeId: "prb_1", netId: "net_ghost", x: 0, y: 0 }],
+    };
+    const result = validateSchematic(doc);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some(
+        (e) => e.path === "layout.probes.0.netId" && e.message.includes("net_ghost"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a probe missing its netId (issue #37)", () => {
+    const doc = clone();
+    doc.layout = { instances: {}, probes: [{ probeId: "prb_1", x: 0, y: 0 }] };
+    const result = validateSchematic(doc);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path.startsWith("layout.probes.0.netId"))).toBe(true);
+  });
 });
