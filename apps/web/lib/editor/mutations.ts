@@ -40,6 +40,8 @@ const ID_PREFIXES: Record<string, string> = {
   cmp_potentiometer: "RV",
   cmp_ldr: "LDR",
   cmp_npn_2n2222: "Q",
+  cmp_opamp_ideal: "U",
+  cmp_tmp36: "U",
 };
 
 export function refPrefix(component: Component): string {

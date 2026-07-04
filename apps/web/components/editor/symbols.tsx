@@ -277,6 +277,27 @@ function NmosGlyph() {
   );
 }
 
+function OpampGlyph() {
+  return (
+    <g>
+      {/* input/output leads */}
+      <line x1={-26} y1={10} x2={-16} y2={10} {...strokeProps} />
+      <line x1={-26} y1={-10} x2={-16} y2={-10} {...strokeProps} />
+      <line x1={16} y1={0} x2={26} y2={0} {...strokeProps} />
+      {/* body triangle pointing right */}
+      <polygon
+        points="-16,-20 -16,20 16,0"
+        fill={BODY}
+        stroke={STROKE}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+      />
+      <text x={-12} y={13} fontSize={9} fill={STROKE} textAnchor="start">+</text>
+      <text x={-12} y={-7} fontSize={9} fill={STROKE} textAnchor="start">−</text>
+    </g>
+  );
+}
+
 function PotentiometerGlyph() {
   return (
     <g>
@@ -411,6 +432,10 @@ export function SymbolGlyph({ component }: { component: Component }) {
       return <PnpGlyph />;
     case "nmos":
       return <NmosGlyph />;
+    case "opamp":
+      return <OpampGlyph />;
+    case "ic":
+      return <McuGlyph component={component} />;
     case "potentiometer":
       return <PotentiometerGlyph />;
     case "pushbutton":
