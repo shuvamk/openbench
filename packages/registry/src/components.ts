@@ -549,6 +549,56 @@ export const tmp36: Component = {
   provenance: PROVENANCE,
 };
 
+/**
+ * Current sources (batch 5) — the Norton complement to the voltage sources.
+ * Enables current-driven biasing, Norton equivalents, and current-mode demos.
+ */
+
+/** Ideal DC current source: pushes `current` amps from pos to neg. */
+export const isourceDc: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_isource_dc",
+  name: "DC Current Source",
+  category: "power",
+  pins: [
+    { id: "pos", name: "+", electricalType: "passive" },
+    { id: "neg", name: "-", electricalType: "passive" },
+  ],
+  parameters: [{ name: "current", unit: "ampere", default: 0.001, type: "number" }],
+  simModel: {
+    engine: "ngspice",
+    template: "I{ref} {pos} {neg} DC {current}",
+  },
+  provenance: PROVENANCE,
+};
+
+/** Sinusoidal current source — AC current stimulus (mirrors cmp_vsource_sin). */
+export const isourceSin: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_isource_sin",
+  name: "Sine Current Source",
+  category: "power",
+  pins: [
+    { id: "pos", name: "+", electricalType: "passive" },
+    { id: "neg", name: "-", electricalType: "passive" },
+  ],
+  parameters: [
+    { name: "ioffset", unit: "ampere", default: 0, type: "number" },
+    { name: "iamplitude", unit: "ampere", default: 0.001, type: "number" },
+    { name: "frequency", unit: "hertz", default: 1000, type: "number" },
+    { name: "tdelay", unit: "second", default: 0, type: "number" },
+    { name: "damping", unit: "hertz", default: 0, type: "number" },
+  ],
+  simModel: {
+    engine: "ngspice",
+    template:
+      "I{ref} {pos} {neg} SIN({ioffset} {iamplitude} {frequency} {tdelay} {damping})",
+  },
+  provenance: PROVENANCE,
+};
+
 /** Names the ground net only — no simModel; SPICE node 0 comes from the compiler. */
 export const ground: Component = {
   irVersion: IR_VERSION,
