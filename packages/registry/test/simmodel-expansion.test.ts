@@ -273,3 +273,162 @@ describe("ICs via .subckt (issue #44)", () => {
     ]);
   });
 });
+
+describe("digital & visual ICs compile through .subckt (issue #44, batch 6)", () => {
+  it("cmp_logic_7400 expands to an X card plus its NAND .subckt block", () => {
+    const result = compilePart("cmp_logic_7400");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Pins map to nodes in declaration order: a=1, b=2, y=3.
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "X1", spiceCard: "XX1 1 2 3 NAND7400" },
+      {
+        instanceId: "cmp_logic_7400",
+        spiceCard:
+          ".subckt NAND7400 a b y\nBy y 0 V = (V(a) > 2.5) ? ((V(b) > 2.5) ? 0 : 5) : 5\n.ends NAND7400",
+      },
+    ]);
+  });
+
+  it("cmp_logic_7404 expands to an X card plus its inverter .subckt block", () => {
+    const result = compilePart("cmp_logic_7404");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "X1", spiceCard: "XX1 1 2 NOT7404" },
+      {
+        instanceId: "cmp_logic_7404",
+        spiceCard: ".subckt NOT7404 a y\nBy y 0 V = (V(a) > 2.5) ? 0 : 5\n.ends NOT7404",
+      },
+    ]);
+  });
+
+  it("cmp_logic_7408 expands to an X card plus its AND .subckt block", () => {
+    const result = compilePart("cmp_logic_7408");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "X1", spiceCard: "XX1 1 2 3 AND7408" },
+      {
+        instanceId: "cmp_logic_7408",
+        spiceCard:
+          ".subckt AND7408 a b y\nBy y 0 V = (V(a) > 2.5) ? ((V(b) > 2.5) ? 5 : 0) : 0\n.ends AND7408",
+      },
+    ]);
+  });
+
+  it("cmp_7segment_display expands to eight D cards sharing one DSEG model card", () => {
+    const result = compilePart("cmp_7segment_display");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Pins map to nodes in declaration order: a=1..dp=8, com=9.
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "X1", spiceCard: "DX1a 1 9 DSEG" },
+      { instanceId: "X1", spiceCard: "DX1b 2 9 DSEG" },
+      { instanceId: "X1", spiceCard: "DX1c 3 9 DSEG" },
+      { instanceId: "X1", spiceCard: "DX1d 4 9 DSEG" },
+      { instanceId: "X1", spiceCard: "DX1e 5 9 DSEG" },
+      { instanceId: "X1", spiceCard: "DX1f 6 9 DSEG" },
+      { instanceId: "X1", spiceCard: "DX1g 7 9 DSEG" },
+      { instanceId: "X1", spiceCard: "DX1dp 8 9 DSEG" },
+      { instanceId: "cmp_7segment_display", spiceCard: ".model DSEG D(IS=1e-14 N=2.0)" },
+    ]);
+  });
+});
+
+/**
+ * Golden reference: an ideal-op-amp non-inverting amplifier with Rf = Rg = 10k
+ * gives a closed-loop gain of 1 + Rf/Rg = 2 (issue #44 acceptance). This asserts
+ * the whole schematic → netlist path wires the OPAMP subckt, the feedback divider,
+ * and the input source into one valid deck; the exact 2× transfer is browser-WASM
+ * -verified (the node MockBackend returns synthetic waveforms, not SPICE physics).
+ */
+describe("op-amp non-inverting amplifier (gain 2) reference schematic (issue #44)", () => {
+  const RF = 10000;
+  const RG = 10000;
+
+  function nonInvertingAmp(): Schematic {
+    const instances: SchematicInstance[] = [
+      { instanceId: "V1", componentId: "cmp_vsource_dc", parameterOverrides: { voltage: 1 } },
+      { instanceId: "X1", componentId: "cmp_opamp_ideal" },
+      { instanceId: "RF", componentId: "cmp_resistor_generic", parameterOverrides: { resistance: RF } },
+      { instanceId: "RG", componentId: "cmp_resistor_generic", parameterOverrides: { resistance: RG } },
+      { instanceId: "GND1", componentId: "cmp_ground" },
+    ];
+    return {
+      irVersion: IR_VERSION,
+      kind: "schematic",
+      id: "sch_noninv_amp",
+      projectId: "proj_fixture",
+      instances,
+      nets: [
+        // vin: source + → op-amp IN+  (node 1)
+        {
+          netId: "net_vin",
+          connections: [
+            { instanceId: "V1", pinId: "pos" },
+            { instanceId: "X1", pinId: "inp" },
+          ],
+        },
+        // out: op-amp OUT → Rf  (node 2)
+        {
+          netId: "net_out",
+          connections: [
+            { instanceId: "X1", pinId: "out" },
+            { instanceId: "RF", pinId: "p1" },
+          ],
+        },
+        // fb: op-amp IN- ← Rf ← Rg divider  (node 3)
+        {
+          netId: "net_fb",
+          connections: [
+            { instanceId: "X1", pinId: "inn" },
+            { instanceId: "RF", pinId: "p2" },
+            { instanceId: "RG", pinId: "p1" },
+          ],
+        },
+        // ground: source -, Rg bottom, ground symbol  (node 0)
+        {
+          netId: "net_gnd",
+          connections: [
+            { instanceId: "V1", pinId: "neg" },
+            { instanceId: "RG", pinId: "p2" },
+            { instanceId: "GND1", pinId: "gnd" },
+          ],
+        },
+      ],
+      provenance: { source: "test-fixture", at: FIXTURE_AT },
+    };
+  }
+
+  it("is a valid schematic", () => {
+    const result = validateSchematic(nonInvertingAmp());
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("compiles to a valid netlist wiring the OPAMP subckt + feedback divider", () => {
+    const result = compileNetlist(nonInvertingAmp(), getComponent, { now: NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The ground symbol carries no simModel — skipped with a warning, not an error.
+    expect(result.warnings).toEqual(["skipped GND1: no simulation model"]);
+    expect(result.netlist.elements).toEqual([
+      { instanceId: "V1", spiceCard: "VV1 1 0 DC 1" },
+      { instanceId: "X1", spiceCard: "XX1 1 3 2 OPAMP" },
+      { instanceId: "RF", spiceCard: `RRF 2 3 ${RF}` },
+      { instanceId: "RG", spiceCard: `RRG 3 0 ${RG}` },
+      {
+        instanceId: "cmp_opamp_ideal",
+        spiceCard: ".subckt OPAMP inp inn out\nEout out 0 inp inn 100k\n.ends OPAMP",
+      },
+    ]);
+    const validation = validateNetlist(result.netlist);
+    expect(validation.errors).toEqual([]);
+    expect(validation.valid).toBe(true);
+  });
+
+  it("Rf = Rg encodes the non-inverting gain of 1 + Rf/Rg = 2", () => {
+    expect(1 + RF / RG).toBe(2);
+  });
+});

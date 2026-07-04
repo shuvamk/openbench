@@ -37,6 +37,10 @@ const EXPECTED_IDS = [
   "cmp_tmp36",
   "cmp_isource_dc",
   "cmp_isource_sin",
+  "cmp_logic_7400",
+  "cmp_logic_7404",
+  "cmp_logic_7408",
+  "cmp_7segment_display",
 ];
 
 const byId = (id: string): Component => {
@@ -431,5 +435,62 @@ describe("current sources (batch 5)", () => {
     expect(isrc.simModel?.template).toBe(
       "I{ref} {pos} {neg} SIN({ioffset} {iamplitude} {frequency} {tdelay} {damping})",
     );
+  });
+});
+
+describe("digital & visual ICs (batch 6, issue #44)", () => {
+  it("cmp_logic_7400 is a single NAND gate: X-card template + a .subckt block", () => {
+    const nand = byId("cmp_logic_7400");
+    expect(nand.category).toBe("active");
+    expect(nand.pins.map((p) => p.id)).toEqual(["a", "b", "y"]);
+    expect(nand.pins.map((p) => p.electricalType)).toEqual(["input", "input", "output"]);
+    expect(nand.parameters).toEqual([]);
+    expect(nand.simModel?.template).toBe("X{ref} {a} {b} {y} NAND7400");
+    expect(nand.simModel?.subckt).toBe(
+      ".subckt NAND7400 a b y\nBy y 0 V = (V(a) > 2.5) ? ((V(b) > 2.5) ? 0 : 5) : 5\n.ends NAND7400",
+    );
+  });
+
+  it("cmp_logic_7404 is a single inverter: a→y with an inverting .subckt", () => {
+    const not = byId("cmp_logic_7404");
+    expect(not.category).toBe("active");
+    expect(not.pins.map((p) => p.id)).toEqual(["a", "y"]);
+    expect(not.pins.map((p) => p.electricalType)).toEqual(["input", "output"]);
+    expect(not.parameters).toEqual([]);
+    expect(not.simModel?.template).toBe("X{ref} {a} {y} NOT7404");
+    expect(not.simModel?.subckt).toBe(
+      ".subckt NOT7404 a y\nBy y 0 V = (V(a) > 2.5) ? 0 : 5\n.ends NOT7404",
+    );
+  });
+
+  it("cmp_logic_7408 is a single AND gate with a conjunction .subckt", () => {
+    const and = byId("cmp_logic_7408");
+    expect(and.category).toBe("active");
+    expect(and.pins.map((p) => p.id)).toEqual(["a", "b", "y"]);
+    expect(and.pins.map((p) => p.electricalType)).toEqual(["input", "input", "output"]);
+    expect(and.parameters).toEqual([]);
+    expect(and.simModel?.template).toBe("X{ref} {a} {b} {y} AND7408");
+    expect(and.simModel?.subckt).toBe(
+      ".subckt AND7408 a b y\nBy y 0 V = (V(a) > 2.5) ? ((V(b) > 2.5) ? 5 : 0) : 0\n.ends AND7408",
+    );
+  });
+
+  it("cmp_7segment_display is eight segment LEDs sharing one common cathode", () => {
+    const seg = byId("cmp_7segment_display");
+    expect(seg.category).toBe("other");
+    expect(seg.pins.map((p) => p.id)).toEqual(["a", "b", "c", "d", "e", "f", "g", "dp", "com"]);
+    expect(seg.pins.every((p) => p.electricalType === "passive")).toBe(true);
+    expect(seg.parameters).toEqual([]);
+    expect(seg.simModel?.template).toBe(
+      "D{ref}a {a} {com} DSEG\n" +
+        "D{ref}b {b} {com} DSEG\n" +
+        "D{ref}c {c} {com} DSEG\n" +
+        "D{ref}d {d} {com} DSEG\n" +
+        "D{ref}e {e} {com} DSEG\n" +
+        "D{ref}f {f} {com} DSEG\n" +
+        "D{ref}g {g} {com} DSEG\n" +
+        "D{ref}dp {dp} {com} DSEG",
+    );
+    expect(seg.simModel?.modelCard).toBe(".model DSEG D(IS=1e-14 N=2.0)");
   });
 });

@@ -599,6 +599,122 @@ export const isourceSin: Component = {
   provenance: PROVENANCE,
 };
 
+/**
+ * Digital & visual ICs (batch 6, issue #44). The 74xx logic gates expand through
+ * the `.subckt` path (ADR-0017) as single-gate behavioral models: an ngspice
+ * `B` (behavioral) source drives the output to a 0/5V logic level via nested
+ * ternaries over a 2.5V input threshold — no boolean operators, correct by
+ * inspection. Output is referenced to global node 0 (like `cmp_opamp_ideal`), so
+ * no supply pins are needed for the simulation. The 7-segment display is purely
+ * visual: eight segment LEDs sharing one common cathode (same DLED physics as the
+ * existing LED/RGB parts). Exact SPICE logic timing is browser-WASM-verified; the
+ * node MockBackend returns synthetic waveforms, not SPICE physics.
+ */
+
+/** 7400 quad NAND — one gate: Y = NOT(A AND B), TTL-ish 2.5V input threshold. */
+export const logic7400: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_logic_7400",
+  name: "NAND Gate (7400)",
+  category: "active",
+  pins: [
+    { id: "a", name: "A", electricalType: "input" },
+    { id: "b", name: "B", electricalType: "input" },
+    { id: "y", name: "Y", electricalType: "output" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "X{ref} {a} {b} {y} NAND7400",
+    subckt:
+      ".subckt NAND7400 a b y\nBy y 0 V = (V(a) > 2.5) ? ((V(b) > 2.5) ? 0 : 5) : 5\n.ends NAND7400",
+  },
+  provenance: PROVENANCE,
+};
+
+/** 7404 hex inverter — one gate: Y = NOT(A). */
+export const logic7404: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_logic_7404",
+  name: "NOT Gate (7404)",
+  category: "active",
+  pins: [
+    { id: "a", name: "A", electricalType: "input" },
+    { id: "y", name: "Y", electricalType: "output" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "X{ref} {a} {y} NOT7404",
+    subckt: ".subckt NOT7404 a y\nBy y 0 V = (V(a) > 2.5) ? 0 : 5\n.ends NOT7404",
+  },
+  provenance: PROVENANCE,
+};
+
+/** 7408 quad AND — one gate: Y = A AND B. */
+export const logic7408: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_logic_7408",
+  name: "AND Gate (7408)",
+  category: "active",
+  pins: [
+    { id: "a", name: "A", electricalType: "input" },
+    { id: "b", name: "B", electricalType: "input" },
+    { id: "y", name: "Y", electricalType: "output" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "X{ref} {a} {b} {y} AND7408",
+    subckt:
+      ".subckt AND7408 a b y\nBy y 0 V = (V(a) > 2.5) ? ((V(b) > 2.5) ? 5 : 0) : 0\n.ends AND7408",
+  },
+  provenance: PROVENANCE,
+};
+
+/**
+ * Common-cathode 7-segment display: eight anode segments (a–g plus decimal point
+ * dp) share one common cathode. A multi-line template emits one D-card per segment
+ * (one card per line, issue #21), all sharing the DSEG model — the same LED physics
+ * as `cmp_led_generic`. Driving a segment high lights it in the live view.
+ */
+export const sevenSegmentDisplay: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_7segment_display",
+  name: "7-Segment Display",
+  category: "other",
+  pins: [
+    { id: "a", name: "a", electricalType: "passive" },
+    { id: "b", name: "b", electricalType: "passive" },
+    { id: "c", name: "c", electricalType: "passive" },
+    { id: "d", name: "d", electricalType: "passive" },
+    { id: "e", name: "e", electricalType: "passive" },
+    { id: "f", name: "f", electricalType: "passive" },
+    { id: "g", name: "g", electricalType: "passive" },
+    { id: "dp", name: "dp", electricalType: "passive" },
+    { id: "com", name: "COM", electricalType: "passive" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template:
+      "D{ref}a {a} {com} DSEG\n" +
+      "D{ref}b {b} {com} DSEG\n" +
+      "D{ref}c {c} {com} DSEG\n" +
+      "D{ref}d {d} {com} DSEG\n" +
+      "D{ref}e {e} {com} DSEG\n" +
+      "D{ref}f {f} {com} DSEG\n" +
+      "D{ref}g {g} {com} DSEG\n" +
+      "D{ref}dp {dp} {com} DSEG",
+    modelCard: ".model DSEG D(IS=1e-14 N=2.0)",
+  },
+  provenance: PROVENANCE,
+};
+
 /** Names the ground net only — no simModel; SPICE node 0 comes from the compiler. */
 export const ground: Component = {
   irVersion: IR_VERSION,
