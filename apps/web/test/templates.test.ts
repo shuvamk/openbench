@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { validateProject, validateSchematic } from "@openbench/ir-schema";
 import { compileNetlist } from "@openbench/netlist-compiler";
 import { getComponent } from "@openbench/registry";
-import { createFromTemplate, duplicateBundle } from "../lib/templates";
+import {
+  createFromTemplate,
+  duplicateBundle,
+  TEMPLATE_OPTIONS,
+  type TemplateKind,
+} from "../lib/templates";
 
 describe("createFromTemplate", () => {
   it("creates a valid blank project bundle", () => {
@@ -215,6 +220,138 @@ describe("createFromTemplate", () => {
     });
   });
 
+  describe("rlc-ringing", () => {
+    const bundle = createFromTemplate("rlc-ringing", "RLC");
+    const nets = bundle.schematic.nets;
+    const find = (instanceId: string, pinId: string) =>
+      nets.find((n) =>
+        n.connections.some(
+          (c) => c.instanceId === instanceId && c.pinId === pinId,
+        ),
+      );
+
+    it("is a valid series R-L-C driven by the pulse source", () => {
+      expect(validateProject(bundle.project)).toEqual({ valid: true, errors: [] });
+      expect(validateSchematic(bundle.schematic)).toEqual({ valid: true, errors: [] });
+
+      const byId = new Map(
+        bundle.schematic.instances.map((i) => [i.instanceId, i]),
+      );
+      expect(byId.get("V1")?.componentId).toBe("cmp_vsource_pulse");
+      expect(byId.get("R1")?.componentId).toBe("cmp_resistor_generic");
+      expect(byId.get("L1")?.componentId).toBe("cmp_inductor_generic");
+      expect(byId.get("L1")?.parameterOverrides?.inductance).toBeCloseTo(1e-3, 9);
+      expect(byId.get("C1")?.componentId).toBe("cmp_capacitor_generic");
+      expect(byId.get("C1")?.parameterOverrides?.capacitance).toBeCloseTo(1e-6, 12);
+      expect(
+        bundle.schematic.instances.some((i) => i.componentId === "cmp_ground"),
+      ).toBe(true);
+    });
+
+    it("wires VIN -> R1 -> L1 -> VOUT(C1) -> GND in series", () => {
+      expect(find("V1", "pos")).toBe(find("R1", "p1"));
+      expect(find("R1", "p2")).toBe(find("L1", "p1"));
+      expect(find("L1", "p2")).toBe(find("C1", "p1"));
+      expect(find("C1", "p2")).toBe(find("V1", "neg"));
+    });
+
+    it("has grid-snapped layout positions for every instance", () => {
+      const layout = bundle.schematic.layout;
+      expect(layout).toBeDefined();
+      for (const instance of bundle.schematic.instances) {
+        const pos = layout?.instances[instance.instanceId];
+        expect(pos, `layout for ${instance.instanceId}`).toBeDefined();
+        expect(pos!.x % 20, `${instance.instanceId}.x on grid`).toBe(0);
+        expect(pos!.y % 20, `${instance.instanceId}.y on grid`).toBe(0);
+      }
+    });
+
+    it("compiles with an inductor card alongside the resistor, cap and pulse source", () => {
+      const result = compileNetlist(bundle.schematic, getComponent);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const cards = result.netlist.elements.map((e) => e.spiceCard);
+      expect(cards.some((c) => c.startsWith("LL1 "))).toBe(true);
+      expect(cards.some((c) => c.startsWith("RR1 "))).toBe(true);
+      expect(cards.some((c) => c.startsWith("CC1 "))).toBe(true);
+      expect(cards.some((c) => c.startsWith("VV1 ") && c.includes("PULSE("))).toBe(true);
+      expect(result.netlist.nodes.some((n) => n.spiceNode === "0")).toBe(true);
+    });
+  });
+
+  describe("half-wave-rectifier", () => {
+    const bundle = createFromTemplate("half-wave-rectifier", "Rectifier");
+    const nets = bundle.schematic.nets;
+    const find = (instanceId: string, pinId: string) =>
+      nets.find((n) =>
+        n.connections.some(
+          (c) => c.instanceId === instanceId && c.pinId === pinId,
+        ),
+      );
+
+    it("is a valid schematic built from the AC source, Schottky, smoothing cap and load", () => {
+      expect(validateProject(bundle.project)).toEqual({ valid: true, errors: [] });
+      expect(validateSchematic(bundle.schematic)).toEqual({ valid: true, errors: [] });
+
+      const byId = new Map(
+        bundle.schematic.instances.map((i) => [i.instanceId, i]),
+      );
+      expect(byId.get("V1")?.componentId).toBe("cmp_vsource_sin");
+      expect(byId.get("D1")?.componentId).toBe("cmp_schottky_diode");
+      expect(byId.get("C1")?.componentId).toBe("cmp_capacitor_generic");
+      expect(byId.get("C1")?.parameterOverrides?.capacitance).toBeCloseTo(10e-6, 12);
+      expect(byId.get("RL")?.componentId).toBe("cmp_resistor_generic");
+      expect(byId.get("RL")?.parameterOverrides?.resistance).toBe(1000);
+      expect(
+        bundle.schematic.instances.some((i) => i.componentId === "cmp_ground"),
+      ).toBe(true);
+    });
+
+    it("wires AC -> D1 -> VOUT(cap||load) -> GND", () => {
+      // V1+ drives the diode anode
+      expect(find("V1", "pos")).toBe(find("D1", "a"));
+      // rectified output shared by the cathode, the smoothing cap and the load
+      expect(find("D1", "k")).toBe(find("C1", "p1"));
+      expect(find("D1", "k")).toBe(find("RL", "p1"));
+      // return rail: cap, load, source- and the ground symbol
+      expect(find("C1", "p2")).toBe(find("V1", "neg"));
+      expect(find("RL", "p2")).toBe(find("V1", "neg"));
+    });
+
+    it("puts the ground symbol on the return net", () => {
+      const gndInstance = bundle.schematic.instances.find(
+        (i) => i.componentId === "cmp_ground",
+      );
+      expect(gndInstance).toBeDefined();
+      expect(find(gndInstance!.instanceId, "gnd")).toBe(find("V1", "neg"));
+    });
+
+    it("has grid-snapped layout positions for every instance", () => {
+      const layout = bundle.schematic.layout;
+      expect(layout).toBeDefined();
+      for (const instance of bundle.schematic.instances) {
+        const pos = layout?.instances[instance.instanceId];
+        expect(pos, `layout for ${instance.instanceId}`).toBeDefined();
+        expect(pos!.x % 20, `${instance.instanceId}.x on grid`).toBe(0);
+        expect(pos!.y % 20, `${instance.instanceId}.y on grid`).toBe(0);
+      }
+    });
+
+    it("compiles to a SIN source, a Schottky diode with its model card, cap and load", () => {
+      const result = compileNetlist(bundle.schematic, getComponent);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const cards = result.netlist.elements.map((e) => e.spiceCard);
+      expect(cards.some((c) => c.startsWith("VV1 ") && c.includes("SIN("))).toBe(true);
+      expect(cards.some((c) => c.startsWith("DD1 ") && c.includes("DSCHOTTKY"))).toBe(true);
+      expect(cards.some((c) => c.startsWith(".model DSCHOTTKY "))).toBe(true);
+      expect(cards.some((c) => c.startsWith("CC1 "))).toBe(true);
+      expect(cards.some((c) => c.startsWith("RRL ") && c.includes("1000"))).toBe(true);
+      // the ground net maps to SPICE node 0
+      expect(result.netlist.nodes.some((n) => n.spiceNode === "0")).toBe(true);
+    });
+  });
+
   describe("esp32-blink", () => {
     const bundle = createFromTemplate("esp32-blink", "Blink");
 
@@ -266,6 +403,37 @@ describe("createFromTemplate", () => {
         ).toBeDefined();
       }
     });
+  });
+});
+
+describe("TEMPLATE_OPTIONS", () => {
+  it("offers a labelled, described option for every buildable template kind", () => {
+    // Guards against the drift that hid the playground from the picker:
+    // every option must build a valid bundle, and there are no options that
+    // reference a kind createFromTemplate can't produce.
+    for (const option of TEMPLATE_OPTIONS) {
+      expect(option.label.length, `label for ${option.value}`).toBeGreaterThan(0);
+      expect(option.description.length, `description for ${option.value}`).toBeGreaterThan(0);
+      const bundle = createFromTemplate(option.value, `${option.label} test`);
+      expect(
+        validateSchematic(bundle.schematic),
+        `${option.value} builds a valid schematic`,
+      ).toEqual({ valid: true, errors: [] });
+    }
+  });
+
+  it("surfaces every template kind exactly once (no hidden templates, no duplicates)", () => {
+    const kinds: TemplateKind[] = [
+      "blank",
+      "rc-lowpass",
+      "esp32-blink",
+      "playground",
+      "half-wave-rectifier",
+      "rlc-ringing",
+    ];
+    const optionValues = TEMPLATE_OPTIONS.map((o) => o.value).sort();
+    expect(optionValues).toEqual([...kinds].sort());
+    expect(new Set(optionValues).size).toBe(optionValues.length);
   });
 });
 

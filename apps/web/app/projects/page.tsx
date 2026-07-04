@@ -25,13 +25,12 @@ import {
   serializeBundle,
 } from "../../lib/project-store";
 import { importKicadToBundle } from "../../lib/kicad/io";
-import { createFromTemplate, duplicateBundle, type TemplateKind } from "../../lib/templates";
-
-const TEMPLATE_OPTIONS = [
-  { value: "blank", label: "Blank" },
-  { value: "rc-lowpass", label: "RC low-pass filter" },
-  { value: "esp32-blink", label: "ESP32 blink" },
-];
+import {
+  createFromTemplate,
+  duplicateBundle,
+  TEMPLATE_OPTIONS,
+  type TemplateKind,
+} from "../../lib/templates";
 
 function formatUpdatedAt(iso: string): string {
   const date = new Date(iso);
@@ -262,7 +261,7 @@ export default function ProjectsPage() {
       ) : projects.length === 0 ? (
         <EmptyState
           title="No projects yet"
-          description="Start from a template — an RC filter, an ESP32 blink, or a blank bench."
+          description="Start from a template — an RC filter, a half-wave rectifier, an ESP32 blink, the interactive playground, or a blank bench."
           actions={
             <Button
               label="New project"
