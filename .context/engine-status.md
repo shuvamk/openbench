@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | IR core | `packages/ir-schema` | **wired** — all six kinds | pure TS (zod) |
 | Netlist compiler | `packages/netlist-compiler` | **wired** | pure TS |
-| Registry | `packages/registry` | **wired** — 27 curated parts | pure TS data |
+| Registry | `packages/registry` | **wired** — 31 curated parts | pure TS data |
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep, WASM+mock backends | WASM (`eecircuit-engine`) in-browser; native CLI pending |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
@@ -26,7 +26,7 @@
 
 ## Registry (`packages/registry`)
 
-- Wired (issues #6, #17, #22; batch 3; ICs #44; current sources): 27 parts — passives, LED/RGB/diode/NPN,
+- Wired (issues #6, #17, #22; batch 3; ICs #44; current sources): 31 parts — passives, LED/RGB/diode/NPN,
   DC/pulse/sine voltage sources, DC/sine current sources (`I{ref}` cards, symbol kind `isource`),
   interactive parts (pushbutton, switch, potentiometer, LDR) via `derivedParams`, and
   electromechanical visuals (DC motor, buzzer, lamp). Batch 3 adds the fundamentals that
@@ -39,8 +39,15 @@
   subcircuit path — enables active filters/integrators; symbol kind `opamp`) and `cmp_tmp36`
   (temperature sensor, `Vout = 0.5 + 0.01·tempC` via `derivedParams`; labeled-box `ic` symbol).
   Op-amp SPICE physics is browser-WASM-verified (node MockBackend returns synthetic waveforms).
-  Remaining #44 scope (NE555, 74xx logic, 7-seg) needs behavioral models verified in a browser
-  session before shipping — deliberately not faked behind the synthetic MockBackend.
+  Batch 6 (#44) lands the digital & visual ICs: `cmp_logic_7400`/`_7404`/`_7408` (single-gate
+  NAND/NOT/AND behavioral `.subckt` models — an ngspice `B` source drives the output to 0/5V via
+  nested ternaries over a 2.5V threshold, output referenced to global node 0 like the op-amp) and
+  `cmp_7segment_display` (eight common-cathode segment LEDs on the shared DSEG model, `ic` symbol).
+  The logic-gate models are correct by inspection; exact SPICE logic timing is browser-WASM-verified,
+  not asserted against the synthetic MockBackend (ADR-0021 supersedes the earlier blanket deferral).
+  `cmp_timer_ne555` is intentionally NOT shipped here — a correct astable 555 needs an internal
+  comparator+latch and a discharge-switch that require live in-browser ngspice verification; tracked
+  as a follow-up issue rather than faked behind MockBackend.
   Original core: `cmp_resistor_generic`, `cmp_capacitor_generic`, `cmp_led_generic`
   (DLED modelCard), `cmp_vsource_dc`, `cmp_ground` (no simModel — names the ground net;
   netlist compiler maps it to SPICE node 0), `cmp_esp32_devkit` (no simModel — emulated,

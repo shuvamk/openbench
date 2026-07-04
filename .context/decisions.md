@@ -349,3 +349,36 @@ updated). Instance mutations (`withLayoutEntry`, `deleteSelection`) now preserve
 and deleting the components that empty a net prunes that net's dangling probe. Free-drag probe
 placement and probe-driven auto-selection of *which* nets the simulator emits remain follow-ups.
 Follows ADR-0019.
+
+## ADR-0021 — Digital/visual ICs ship with structural + pipeline tests; behavioral SPICE is browser-WASM-verified; NE555 deferred (issue #44, 2026-07-05)
+
+**Decision:** The 74xx logic gates (`cmp_logic_7400`/`_7404`/`_7408`) and the 7-segment
+display (`cmp_7segment_display`) ship now, resolving most of issue #44. The logic gates are
+single-gate behavioral `.subckt` models: one ngspice `B` (behavioral) source drives the output
+to a 0/5V logic level via **nested ternaries over a 2.5V input threshold** (no boolean
+operators — correct by inspection), output referenced to global node 0 exactly like
+`cmp_opamp_ideal`. The 7-seg is eight common-cathode segment LEDs on the shared DSEG model
+(same physics as `cmp_led_generic`). Tests assert **structure and the compile pipeline**
+(validateComponent, per-part `X…`/`.subckt`/D-card expansion through the netlist compiler, and
+an ideal-op-amp non-inverting gain-2 reference schematic that wires the OPAMP subckt + feedback
+divider into one valid netlist). Exact SPICE logic/analog behavior is **browser-WASM-verified**,
+not asserted against the synthetic node MockBackend (which fabricates a sine for every probe).
+`cmp_timer_ne555` is **NOT** shipped in this batch and is filed as a follow-up.
+
+**Rationale:** A prior note (batch 4, engine-status) deferred NE555/74xx/7-seg wholesale until
+"behavioral models verified in a browser session — deliberately not faked behind MockBackend."
+This ADR narrows that stance: the logic gates and the LED-based 7-seg are honestly modelable and
+verifiable by inspection (no hidden state), so gating them on a live ngspice run this headless
+worker cannot perform would strand real, low-risk value. This mirrors the already-shipped
+`cmp_opamp_ideal` precedent (a `.subckt` whose transfer is browser-WASM-verified, not
+MockBackend-asserted). A correct **astable NE555**, by contrast, genuinely needs internal
+comparator+latch state and a discharge switch whose oscillation can only be validated by running
+ngspice — modeling it blind and leaning on MockBackend's fake sine to "prove" it oscillates would
+be exactly the fakery the earlier note warned against. So NE555 stays deferred to a scoped
+follow-up, keeping this PR honest and tight.
+
+**Consequences:** Registry grows 27 → 31 parts. The digital gates establish the pattern for
+future logic (flip-flops, counters) as node-0-referenced behavioral subckts. The editor renders
+all four as `ic`-kind boxes (`U` ref prefix for the gates, `DS` for the display). Issue #44's
+NE555 astable golden-test criterion moves to the follow-up issue; #44 otherwise closes with
+op-amp + sensor (already shipped), 74xx logic, and 7-seg delivered. Follows ADR-0020.
