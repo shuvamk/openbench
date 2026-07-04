@@ -235,3 +235,25 @@ allow-list as the registry grows.
 which merged to `main` first; kept in numeric order on the merge. ERC has no UI yet — a
 follow-up frontend issue surfaces violations in the inspector. Rules are additive: new
 codes (`ERC_*`) can land without breaking existing consumers.
+
+## ADR-0017 — Subcircuits reuse the modelCard dedup path (issue #34, 2026-07-04)
+
+**Decision:** Support SPICE subcircuits with a single additive optional field,
+`component.simModel.subckt?: string` (the full `.subckt … .ends` block), rather than a
+structured `{ name, ports, body }` object. The `X` device card comes from the existing
+`template` (`X{ref} <nodes> <name>`); the compiler emits the `subckt` block once,
+deduplicated by content in its own bucket, appended after the model cards — the exact
+mechanism `modelCard` already uses. No `irVersion` bump (optional additive field, per
+the modelCard/derivedParams precedent).
+**Rationale:** A subcircuit block is, to the compiler and deck builder, an opaque
+multi-line SPICE string emitted once — structurally identical to a `.model` card. Reusing
+that path keeps the change tiny and low-risk, needs no new node-mapping logic (external
+nodes already map through the template's `{pin}` tokens; internal nodes are local by SPICE
+semantics), and the deck builder already joins multi-line `spiceCard` values with `\n`.
+A structured object would buy validation we can't meaningfully enforce without parsing
+SPICE, which is out of scope.
+**Consequences:** Malformed *templates* (undeclared tokens) are already rejected by the
+component schema; malformed *wiring* (an unconnected subckt pin) is a collected compiler
+error, never a throw. The `subckt` body itself is not validated (opaque). This unblocks
+issue #44 (op-amp, NE555, 74xx, 7-seg) — those parts are now expressible with no further
+compiler work. Follows ADR-0016.
