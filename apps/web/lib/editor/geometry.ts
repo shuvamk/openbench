@@ -30,6 +30,8 @@ export type SymbolKind =
   | "schottky"
   | "pnp"
   | "nmos"
+  | "opamp"
+  | "ic"
   | "generic";
 
 /** Curated parts get dedicated symbols keyed by id (issue #23). */
@@ -51,6 +53,8 @@ const ID_KINDS: Record<string, SymbolKind> = {
   cmp_schottky_diode: "schottky",
   cmp_pnp_2n3906: "pnp",
   cmp_nmos_2n7000: "nmos",
+  cmp_opamp_ideal: "opamp",
+  cmp_tmp36: "ic",
 };
 
 export function getSymbolKind(component: Component): SymbolKind {
@@ -136,6 +140,16 @@ export function getSymbolGeometry(component: Component): SymbolGeometry {
           s: { x: 14, y: 24 },
         }),
       };
+    case "opamp":
+      return {
+        halfWidth: 26,
+        halfHeight: 22,
+        pins: pinsById(component, {
+          inp: { x: -26, y: 10 },
+          inn: { x: -26, y: -10 },
+          out: { x: 26, y: 0 },
+        }),
+      };
     case "potentiometer":
       return {
         halfWidth: 30,
@@ -180,6 +194,7 @@ export function getSymbolGeometry(component: Component): SymbolGeometry {
       if (gnd) pins[gnd.id] = { x: 0, y: -12 };
       return { halfWidth: 14, halfHeight: 12, pins };
     }
+    case "ic":
     case "mcu":
     case "generic": {
       const pins: Record<string, Point> = {};

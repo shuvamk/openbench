@@ -53,6 +53,8 @@ describe("dedicated symbol kinds (issue #23)", () => {
     cmp_schottky_diode: "schottky",
     cmp_pnp_2n3906: "pnp",
     cmp_nmos_2n7000: "nmos",
+    cmp_opamp_ideal: "opamp",
+    cmp_tmp36: "ic",
   };
   for (const [id, kind] of Object.entries(expectations)) {
     it(`${id} → ${kind}`, () => {

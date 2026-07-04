@@ -492,6 +492,63 @@ export const nmos2n7000: Component = {
   provenance: PROVENANCE,
 };
 
+/**
+ * Integrated-circuit parts (batch 4, issue #44) — the first parts that expand
+ * through the `.subckt` path (ADR-0017). More ICs (NE555, 74xx logic) follow
+ * once their behavioral SPICE models are verified in a browser WASM session.
+ */
+
+/**
+ * Ideal op-amp as a one-line VCVS subcircuit (open-loop gain 100k referenced to
+ * global node 0). With external feedback this gives textbook closed-loop gains —
+ * enough for active filters, integrators, and buffers. Real behaviour verified
+ * in-browser (the node MockBackend returns synthetic waveforms, not SPICE).
+ */
+export const opampIdeal: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_opamp_ideal",
+  name: "Op-Amp (ideal)",
+  category: "active",
+  pins: [
+    { id: "inp", name: "IN+", electricalType: "input" },
+    { id: "inn", name: "IN-", electricalType: "input" },
+    { id: "out", name: "OUT", electricalType: "output" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "X{ref} {inp} {inn} {out} OPAMP",
+    subckt: ".subckt OPAMP inp inn out\nEout out 0 inp inn 100k\n.ends OPAMP",
+  },
+  provenance: PROVENANCE,
+};
+
+/**
+ * TMP36 analog temperature sensor: Vout = 500mV + 10mV/°C, modeled as a DC
+ * source between `vout` and `gnd` whose voltage derives from `tempC`. The `vs`
+ * supply pin exists for wiring/ERC but is not part of the SPICE card.
+ */
+export const tmp36: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_tmp36",
+  name: "TMP36 Temp Sensor",
+  category: "sensor",
+  pins: [
+    { id: "vs", name: "+Vs", electricalType: "power_in" },
+    { id: "vout", name: "Vout", electricalType: "output" },
+    { id: "gnd", name: "GND", electricalType: "power_in" },
+  ],
+  parameters: [{ name: "tempC", unit: "celsius", default: 25, type: "number" }],
+  simModel: {
+    engine: "ngspice",
+    template: "V{ref} {vout} {gnd} DC {vout_v}",
+    derivedParams: { vout_v: "0.5 + 0.01 * tempC" },
+  },
+  provenance: PROVENANCE,
+};
+
 /** Names the ground net only — no simModel; SPICE node 0 comes from the compiler. */
 export const ground: Component = {
   irVersion: IR_VERSION,

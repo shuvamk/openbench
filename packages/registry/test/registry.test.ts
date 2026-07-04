@@ -33,6 +33,8 @@ const EXPECTED_IDS = [
   "cmp_schottky_diode",
   "cmp_pnp_2n3906",
   "cmp_nmos_2n7000",
+  "cmp_opamp_ideal",
+  "cmp_tmp36",
 ];
 
 const byId = (id: string): Component => {
@@ -373,5 +375,31 @@ describe("fundamental parts (batch 3)", () => {
     expect(nmos.parameters).toEqual([]);
     expect(nmos.simModel?.template).toBe("M{ref} {d} {g} {s} {s} MOSN");
     expect(nmos.simModel?.modelCard).toBe(".model MOSN NMOS(VTO=2.1 KP=0.05)");
+  });
+});
+
+describe("ICs (batch 4, issue #44)", () => {
+  it("cmp_opamp_ideal is a subckt part: X-card template + a .subckt block", () => {
+    const opamp = byId("cmp_opamp_ideal");
+    expect(opamp.category).toBe("active");
+    expect(opamp.pins.map((p) => p.id)).toEqual(["inp", "inn", "out"]);
+    expect(opamp.pins.map((p) => p.electricalType)).toEqual(["input", "input", "output"]);
+    expect(opamp.parameters).toEqual([]);
+    expect(opamp.simModel?.template).toBe("X{ref} {inp} {inn} {out} OPAMP");
+    expect(opamp.simModel?.subckt).toBe(
+      ".subckt OPAMP inp inn out\nEout out 0 inp inn 100k\n.ends OPAMP",
+    );
+  });
+
+  it("cmp_tmp36 is a temp sensor whose output voltage derives from tempC", () => {
+    const tmp36 = byId("cmp_tmp36");
+    expect(tmp36.category).toBe("sensor");
+    expect(tmp36.pins.map((p) => p.id)).toEqual(["vs", "vout", "gnd"]);
+    expect(tmp36.parameters).toEqual([
+      { name: "tempC", unit: "celsius", default: 25, type: "number" },
+    ]);
+    // TMP36: Vout = 500mV + 10mV/°C.
+    expect(tmp36.simModel?.derivedParams).toEqual({ vout_v: "0.5 + 0.01 * tempC" });
+    expect(tmp36.simModel?.template).toBe("V{ref} {vout} {gnd} DC {vout_v}");
   });
 });
