@@ -118,6 +118,53 @@ describe("WaveformViewer", () => {
     fireEvent.pointerLeave(svg);
     expect(container.querySelector('[data-testid="waveform-crosshair"]')).toBeNull();
   });
+
+  it("renders each trace in a distinct color", () => {
+    const { container } = render(withTheme(<WaveformViewer time={time} traces={traces} />));
+    const a = container
+      .querySelector('[data-testid="waveform-trace-net_vin"]')!
+      .getAttribute("stroke");
+    const b = container
+      .querySelector('[data-testid="waveform-trace-net_vout"]')!
+      .getAttribute("stroke");
+    expect(a).toBeTruthy();
+    expect(b).toBeTruthy();
+    expect(a).not.toBe(b);
+  });
+
+  /** Give the SVG a real box so client→index math is deterministic in jsdom. */
+  function stubBox(svg: Element) {
+    (svg as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect =
+      () =>
+        ({ left: 0, top: 0, width: 760, height: 240, right: 760, bottom: 240, x: 0, y: 0 }) as DOMRect;
+  }
+
+  it("clicking places a measurement cursor with a (t, value) readout", () => {
+    const { container } = render(withTheme(<WaveformViewer time={time} traces={traces} />));
+    const svg = container.querySelector('[data-testid="waveform-svg"]')!;
+    stubBox(svg);
+    fireEvent.click(svg, { clientX: 400, clientY: 100 });
+    expect(container.querySelector('[data-testid="waveform-cursor-0"]')).not.toBeNull();
+    const readout = screen.getByTestId("waveform-cursor-readout");
+    expect(readout.textContent).toContain("t =");
+    expect(readout.textContent).toContain("VIN");
+  });
+
+  it("a second cursor adds a signed delta readout, and a third click resets", () => {
+    const { container } = render(withTheme(<WaveformViewer time={time} traces={traces} />));
+    const svg = container.querySelector('[data-testid="waveform-svg"]')!;
+    stubBox(svg);
+    fireEvent.click(svg, { clientX: 100, clientY: 100 });
+    expect(container.querySelector('[data-testid="waveform-delta-readout"]')).toBeNull();
+    fireEvent.click(svg, { clientX: 740, clientY: 100 });
+    expect(container.querySelector('[data-testid="waveform-cursor-1"]')).not.toBeNull();
+    const delta = screen.getByTestId("waveform-delta-readout");
+    expect(delta.textContent).toContain("Δt");
+    // Third click starts a fresh measurement (single cursor, no delta).
+    fireEvent.click(svg, { clientX: 300, clientY: 100 });
+    expect(container.querySelector('[data-testid="waveform-cursor-1"]')).toBeNull();
+    expect(container.querySelector('[data-testid="waveform-delta-readout"]')).toBeNull();
+  });
 });
 
 describe("SimPanel", () => {
