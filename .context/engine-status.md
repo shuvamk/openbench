@@ -47,7 +47,11 @@
   `cmp_ground` connection) → node `"0"`; stable node numbering; template expansion with
   overrides-over-defaults; `.model` card dedup by content; instances without simModel
   skipped with warning. Collects ALL errors (no fail-fast). 17 tests.
-- Gaps: no subcircuit (.subckt) support; no digital co-sim bridging (open question Q3).
+- Subcircuits (issue #34): a component's `simModel.subckt` (`.subckt … .ends` block)
+  emits one `X` device card per instance (from the `X{ref} <nodes> <name>` template)
+  plus the definition block once, deduped by content like `modelCard`. Internal nodes
+  stay local; only `{pin}` tokens map to outer nodes. Unblocks multi-terminal ICs (#44).
+- Gaps: no digital co-sim bridging (open question Q3).
 
 ## KiCad (`packages/mcp-kicad`)
 

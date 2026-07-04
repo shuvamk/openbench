@@ -143,3 +143,34 @@ describe("spec-sync: interchange-format.md examples parse via validateDocument",
     expect(result.valid).toBe(true);
   });
 });
+
+// .context/interchange-format.md §"Additive fields" — subcircuit component (issue #34).
+// A subckt part pairs an `X{ref} … NAME` call template with a `.subckt … .ends`
+// definition block (deduped by content when compiled).
+const subcktComponentExample = {
+  irVersion: "0.1.0",
+  kind: "component",
+  id: "cmp_opamp_ideal",
+  name: "Ideal Op-Amp",
+  category: "active",
+  pins: [
+    { id: "inp", name: "IN+", electricalType: "input" },
+    { id: "inn", name: "IN-", electricalType: "input" },
+    { id: "out", name: "OUT", electricalType: "output" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "X{ref} {inp} {inn} {out} OPAMP",
+    subckt: ".subckt OPAMP inp inn out\nEout out 0 inp inn 100k\n.ends OPAMP",
+  },
+  provenance: { source: "registry", addedBy: "registry-curator", at: "2026-07-02T00:00:00Z" },
+};
+
+describe("spec-sync: subcircuit component example (issue #34)", () => {
+  it("the subckt component example from the spec doc validates", () => {
+    const result = validateDocument(subcktComponentExample);
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+});

@@ -36,6 +36,14 @@ const simModelSchema = z.object({
   /** Optional SPICE `.model` card emitted alongside the template (additive, issue #5). */
   modelCard: z.string().min(1).optional(),
   /**
+   * Optional SPICE `.subckt … .ends` definition block (additive, issue #34).
+   * Pairs with an `X{ref} <nodes> <name>` template; the netlist compiler emits
+   * one `X` device card per instance and the definition block once (deduped by
+   * content, like `modelCard`). The block is opaque — its internal nodes are
+   * local to the subcircuit; only the template's `{pin}` tokens map to outer nets.
+   */
+  subckt: z.string().min(1).optional(),
+  /**
    * Arithmetic expressions over declared parameter names (additive, issue #21).
    * Allowed: numeric literals (incl. 1e12 style), declared parameter names,
    * `+ - * /` and parentheses — nothing else. Template tokens may reference keys.

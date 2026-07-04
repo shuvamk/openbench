@@ -209,3 +209,35 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
   empties, and emits one `elements[]` entry per line (one SPICE card per
   line). `{ref}`-suffixed device names (e.g. `D{ref}R`) keep multi-device
   instances unique. `modelCard` dedup by content is unchanged.
+- **2026-07-04** — issue #34, one ADDITIVE, patch-level field (no `irVersion`
+  bump; ir-schema-guard: optional additions are non-breaking):
+  `component.simModel.subckt?: string` — a SPICE `.subckt … .ends` definition
+  block. It pairs with an `X{ref} <nodes> <name>` call template; the netlist
+  compiler emits one `X` device card per instance and appends the definition
+  block **once**, deduplicated by content exactly like `modelCard`. The block is
+  opaque: a subcircuit's internal nodes are local to the definition — only the
+  template's `{pin}` tokens map to outer SPICE nodes (ground on a pin net still
+  resolves to `0`). This unblocks multi-terminal ICs (op-amps, 555, logic).
+
+  ```jsonc
+  // === Additive fields — subcircuit component (issue #34) ===
+  {
+    "irVersion": "0.1.0",
+    "kind": "component",
+    "id": "cmp_opamp_ideal",
+    "name": "Ideal Op-Amp",
+    "category": "active",
+    "pins": [
+      { "id": "inp", "name": "IN+", "electricalType": "input" },
+      { "id": "inn", "name": "IN-", "electricalType": "input" },
+      { "id": "out", "name": "OUT", "electricalType": "output" }
+    ],
+    "parameters": [],
+    "simModel": {
+      "engine": "ngspice",
+      "template": "X{ref} {inp} {inn} {out} OPAMP",
+      "subckt": ".subckt OPAMP inp inn out\nEout out 0 inp inn 100k\n.ends OPAMP"
+    },
+    "provenance": { "source": "registry", "addedBy": "registry-curator", "at": "<iso8601>" }
+  }
+  ```
