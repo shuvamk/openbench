@@ -35,6 +35,12 @@ export interface RunProjectSimulationOptions {
   backend?: SimBackend;
   /** Injectable clock for deterministic provenance stamps. */
   now?: string;
+  /**
+   * Progress callback: fires "compiling" when the netlist/deck is being built
+   * and "simulating" immediately before the backend runs. Lets the store drive
+   * user-facing run phase (issue #130) without leaking backend internals.
+   */
+  onPhase?: (phase: "compiling" | "simulating") => void;
 }
 
 export interface RunProjectSimulationResult {
@@ -45,6 +51,33 @@ export interface RunProjectSimulationResult {
   /** Non-fatal compiler warnings (e.g. instances without a simModel). */
   warnings: string[];
   consoleEntries: ConsoleEntry[];
+  /**
+   * The name of the backend that actually produced the run (e.g. "eecircuit"
+   * or "mock"). Absent when no run happened (compile/config failure). For a
+   * fallback backend this is the *effective* backend, not the composite name.
+   */
+  backendUsed?: string;
+  /**
+   * True when the run silently degraded from the primary (WASM) backend to the
+   * deterministic mock backend — surfaced to the user so results are never
+   * mistaken for a real simulation (issue #130).
+   */
+  usedMockFallback: boolean;
+}
+
+/**
+ * A backend that can report, after `run()`, which of its inner backends
+ * actually produced the results and whether that was a fallback.
+ */
+export interface FallbackSimBackend extends SimBackend {
+  /** The inner backend name that produced the last run (undefined pre-run). */
+  readonly lastUsedBackend: string | undefined;
+  /** True when the last run fell through from primary to fallback. */
+  readonly lastUsedFallback: boolean;
+}
+
+function isFallbackBackend(backend: SimBackend): backend is FallbackSimBackend {
+  return "lastUsedBackend" in backend && "lastUsedFallback" in backend;
 }
 
 type BackendFactory = () => SimBackend | Promise<SimBackend>;
@@ -65,19 +98,33 @@ export function createFallbackBackend(
   primary: SimBackend,
   fallback: SimBackend,
   log: (entry: ConsoleEntry) => void,
-): SimBackend {
+): FallbackSimBackend {
+  let lastUsedBackend: string | undefined;
+  let lastUsedFallback = false;
   return {
     name: `${primary.name}-with-${fallback.name}-fallback`,
+    get lastUsedBackend() {
+      return lastUsedBackend;
+    },
+    get lastUsedFallback() {
+      return lastUsedFallback;
+    },
     async run(deck, probes) {
       try {
-        return await primary.run(deck, probes);
+        const result = await primary.run(deck, probes);
+        lastUsedBackend = primary.name;
+        lastUsedFallback = false;
+        return result;
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
         log({
           level: "warn",
           text: `${primary.name} backend failed (${message}) — falling back to the ${fallback.name} backend`,
         });
-        return fallback.run(deck, probes);
+        const result = await fallback.run(deck, probes);
+        lastUsedBackend = fallback.name;
+        lastUsedFallback = true;
+        return result;
       }
     },
   };
@@ -123,12 +170,14 @@ export async function runProjectSimulation(
   const consoleEntries: ConsoleEntry[] = [];
   const log = (entry: ConsoleEntry) => consoleEntries.push(entry);
 
+  opts.onPhase?.("compiling");
+
   const compiled = compileNetlist(bundle.schematic, getComponent);
   if (!compiled.ok) {
     for (const error of compiled.errors) {
       log({ level: "error", text: `compile error at ${error.path}: ${error.message}` });
     }
-    return { warnings: [], consoleEntries };
+    return { warnings: [], consoleEntries, usedMockFallback: false };
   }
 
   const warnings = compiled.warnings;
@@ -147,7 +196,7 @@ export async function runProjectSimulation(
     } else {
       log({ level: "error", text: cause instanceof Error ? cause.message : String(cause) });
     }
-    return { warnings, consoleEntries };
+    return { warnings, consoleEntries, usedMockFallback: false };
   }
 
   const backend =
@@ -157,6 +206,8 @@ export async function runProjectSimulation(
       : await createDefaultBackend(log));
 
   log({ level: "info", text: `transient ${duration} (step ${step}) on backend "${backend.name}"` });
+
+  opts.onPhase?.("simulating");
 
   const run = await runSimulation(
     compiled.netlist,
@@ -172,7 +223,21 @@ export async function runProjectSimulation(
     log({ level: "info", text: `simulation ${run.id} completed with ${signalCount} signals` });
   }
 
-  return { run, deck, warnings, consoleEntries };
+  // Report which concrete backend ran. For a fallback backend, use its
+  // effective inner backend + fallback flag; otherwise the backend's own name.
+  const usedMockFallback = isFallbackBackend(backend) ? backend.lastUsedFallback : false;
+  const backendUsed = isFallbackBackend(backend)
+    ? (backend.lastUsedBackend ?? backend.name)
+    : backend.name;
+
+  if (usedMockFallback) {
+    log({
+      level: "warn",
+      text: `results were produced by the "${backendUsed}" fallback backend — not the real WASM ngspice engine`,
+    });
+  }
+
+  return { run, deck, warnings, consoleEntries, backendUsed, usedMockFallback };
 }
 
 /** Decode an inline data:text/plain;base64 log for display (best effort). */

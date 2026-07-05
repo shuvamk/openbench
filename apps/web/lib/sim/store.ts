@@ -11,8 +11,20 @@ import {
 
 export type SimStatus = "idle" | "queued" | "running" | "completed" | "failed";
 
+/**
+ * Human-facing phase of a run, surfaced on the Run button while it is in
+ * flight (issue #130): idle → compiling → simulating → done | failed.
+ */
+export type SimPhase = "idle" | "compiling" | "simulating" | "done" | "failed";
+
 export interface SimState {
   status: SimStatus;
+  /** Where the current run is in its lifecycle (drives the Run-button text). */
+  phase: SimPhase;
+  /** Name of the backend that produced the latest run ("eecircuit" | "mock"). */
+  backendUsed?: string;
+  /** True when the latest run silently fell back to the mock backend. */
+  usedMockFallback: boolean;
   duration: string;
   step: string;
   /** Probed netIds; null = adapter default (every non-ground net). */
@@ -34,6 +46,9 @@ export interface SimState {
 
 const initialState = {
   status: "idle" as SimStatus,
+  phase: "idle" as SimPhase,
+  backendUsed: undefined as string | undefined,
+  usedMockFallback: false,
   duration: DEFAULT_DURATION,
   step: DEFAULT_STEP,
   probes: null as string[] | null,
@@ -77,6 +92,9 @@ export const useSimStore = create<SimState>((set, get) => ({
 
     set({
       status: "queued",
+      phase: "idle",
+      backendUsed: undefined,
+      usedMockFallback: false,
       consoleEntries: [],
       warnings: [],
       deck: undefined,
@@ -91,6 +109,7 @@ export const useSimStore = create<SimState>((set, get) => ({
       duration,
       step,
       probes: probes ?? undefined,
+      onPhase: (phase) => set({ phase }),
     });
 
     if (result.run !== undefined) {
@@ -107,9 +126,12 @@ export const useSimStore = create<SimState>((set, get) => ({
       }
     }
 
+    const succeeded = result.run !== undefined && result.run.status === "completed";
     set({
-      status:
-        result.run !== undefined && result.run.status === "completed" ? "completed" : "failed",
+      status: succeeded ? "completed" : "failed",
+      phase: succeeded ? "done" : "failed",
+      backendUsed: result.backendUsed,
+      usedMockFallback: result.usedMockFallback,
       run: result.run,
       deck: result.deck,
       warnings: result.warnings,
