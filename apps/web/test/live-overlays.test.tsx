@@ -84,6 +84,22 @@ describe("LiveOverlays", () => {
     expect(opacity).toBeGreaterThan(0.5);
   });
 
+  it("the plain-LED glow halo uses the dedicated LED-glow token, not the net-highlight token", () => {
+    seedPlaygroundWithRun(1.45);
+    useLiveStore.setState({ mode: "live", liveTime: 0 });
+    const { container } = render(
+      <svg>
+        <LiveOverlays />
+      </svg>,
+    );
+    const halo = container.querySelector("circle[filter]");
+    expect(halo).not.toBeNull();
+    const fill = halo!.getAttribute("fill");
+    // A lit LED must read as emitted light, not generic UI highlight (issue #75).
+    expect(fill).not.toBe("var(--ob-net-highlight)");
+    expect(fill).toBe("var(--ob-led-glow)");
+  });
+
   it("a dark LED renders no halo", () => {
     seedPlaygroundWithRun(0);
     useLiveStore.setState({ mode: "live", liveTime: 0 });
