@@ -74,6 +74,13 @@ Status of each: [engine-status.md](engine-status.md).
   parameter overrides and re-run the simulation debounced. Overlays render inside the
   canvas world transform; interactive parts (button/switch/pot/LDR) are actuated
   directly on the canvas in Live mode.
+- `firmware.ts` (firmware-in-the-loop step 3, ADR-0018): joins the emulator side to the
+  live view. Derives the ESP32 `GPIO→netId` map from the schematic, runs the
+  `@openbench/mcp-firmware-platformio` `gpioEventsToPwl` translator on the poller's event
+  stream, samples each PWL source onto the run's time grid, and returns a `qemu`-engine
+  `simulationRun` that `derive.ts` consumes unchanged — so an emulated GPIO blink drives
+  the on-canvas LED. Adds an `apps/web → mcp-firmware-platformio` dependency edge. See
+  [firmware-in-the-loop.md](firmware-in-the-loop.md).
 
 ### 4. UI — `apps/web`
 - Next.js (App Router) deployed on Vercel; API route handlers under `app/api/` serve
