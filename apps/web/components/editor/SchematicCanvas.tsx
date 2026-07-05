@@ -15,6 +15,7 @@ import { clampZoom, useEditorStore, type Point } from "../../lib/editor/store";
 import { useLiveStore } from "../../lib/live/store";
 import { LiveOverlays, LiveSliderPopover } from "./LiveOverlays";
 import { SymbolGlyph } from "./symbols";
+import { ZoomControls } from "./ZoomControls";
 import { traceColor } from "../sim/WaveformViewer";
 
 /**
@@ -163,9 +164,21 @@ export function SchematicCanvas() {
   const onBackgroundPointerDown = (e: React.PointerEvent) => {
     const button = eventButton(e);
     const live = useLiveStore.getState().mode === "live";
-    // In live mode any background drag pans (no marquee/selection).
-    if (button === 1 || (button === 0 && (spaceHeldRef.current || live))) {
+    const state = useEditorStore.getState();
+    // Figma-style direct manipulation (issue 131): a left-drag on the empty
+    // canvas pans by default. Middle-button and space+drag keep panning too;
+    // Shift+left-drag opts into the marquee box-select. Wiring is unaffected —
+    // pin/instance handlers stopPropagation before this fires.
+    const wantsPan =
+      button === 1 ||
+      (button === 0 && (spaceHeldRef.current || live || !e.shiftKey) && tool === "select");
+    if (wantsPan && !(button === 0 && e.shiftKey)) {
       e.preventDefault();
+      // A left-click on empty space (no space/live pan chord, no active wire)
+      // also clears the selection, matching the prior click-to-deselect feel.
+      if (button === 0 && !spaceHeldRef.current && !live && !state.wireDraft) {
+        state.setSelection([]);
+      }
       dragRef.current = {
         kind: "pan",
         pointerId: e.pointerId,
@@ -175,10 +188,10 @@ export function SchematicCanvas() {
       return;
     }
     if (button !== 0) return;
-    const state = useEditorStore.getState();
     if (state.wireDraft) return; // clicking empty space keeps the draft alive
     if (!e.shiftKey) state.setSelection([]);
-    if (tool === "select") {
+    // Shift+left-drag on empty space box-selects (marquee).
+    if (tool === "select" && e.shiftKey) {
       const anchor = clientToWorld(e.clientX, e.clientY);
       dragRef.current = { kind: "marquee", pointerId: e.pointerId, anchor };
       capturePointer(e);
@@ -460,6 +473,13 @@ export function SchematicCanvas() {
         </div>
       )}
       <LiveSliderSlot />
+      <ZoomControls
+        getViewport={() => {
+          const rect = svgRef.current?.getBoundingClientRect();
+          if (!rect || rect.width === 0 || rect.height === 0) return null;
+          return { width: rect.width, height: rect.height };
+        }}
+      />
     </div>
   );
 }
