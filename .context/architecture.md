@@ -157,7 +157,10 @@ Status of each: [engine-status.md](engine-status.md).
   still shipping its `.d.ts` for the `tsc` build. Explicit `npm run build`/`npm test`
   are unaffected — npm suppresses only dependency lifecycle scripts, not the invoked
   script. When the desktop app must actually run, fetch the binary with
-  `npm rebuild electron` or `--foreground-scripts`.
+  `node node_modules/electron/install.js` (or `npm rebuild electron
+  --ignore-scripts=false`). Plain `npm rebuild electron` and `--foreground-scripts`
+  do NOT work here: they honor the root `.npmrc` `ignore-scripts=true`, print
+  "rebuilt successfully", and download nothing.
 
 ## Persistence
 
