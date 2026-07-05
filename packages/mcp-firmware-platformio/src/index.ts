@@ -42,6 +42,18 @@ export {
   type GpioEvent,
   type PollGpioOptions,
 } from "./gpio-poller";
+export {
+  EDGE_RAMP_SECONDS,
+  ROUT_OHMS,
+  VOH_VOLTS,
+  VOL_VOLTS,
+  gpioEventsToPwl,
+  type Esp32PinNetMap,
+  type GpioPwlOptions,
+  type GpioPwlResult,
+  type PinDriveEvent,
+  type PwlSource,
+} from "./gpio-pwl";
 export { validateFirmwareTarget, type FirmwareTarget };
 
 /** Provenance source stamped on every document this adapter produces. */
