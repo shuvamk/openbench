@@ -1,10 +1,23 @@
 # Firmware-in-the-loop — ESP32 QEMU ↔ circuit GPIO bridge
 
-> **Status:** design finding (spike #29, 2026-07-04). No code yet. This document is the
-> written output of the time-boxed research asked for in issue #29 and is referenced by
-> **ADR-0018**. It closes the last open piece of the Phase-1 loop
-> (`firmware → virtual MCU → circuit`) at the *design* level and resolves open question
-> **Q3**. Implementation is scoped into follow-up issues listed at the bottom.
+> **Status:** design finding (spike #29, 2026-07-04); **items 1–3 implemented**
+> (#64/#65/#66, 2026-07-05). This document is the written output of the time-boxed
+> research asked for in issue #29 and is referenced by **ADR-0018**. It closes the last
+> open piece of the Phase-1 loop (`firmware → virtual MCU → circuit`) at the *design*
+> level and resolves open question **Q3**. Item 4 (Direction-B lockstep) remains a spike.
+>
+> **Implementation status (bottom of file lists the issues):**
+> - Item 1 (#64) — `packages/mcp-firmware-platformio/src/gpio-poller.ts`: `GpioPoller` /
+>   `pollGpio` sample `GPIO_OUT`/`GPIO_ENABLE` over a `MemoryReader` → edge `(t,gpio,level)`.
+> - Item 2 (#65) — `.../src/gpio-pwl.ts`: `gpioEventsToPwl(pinNetMap, events)` → one PWL
+>   `V`+`Rout` source per driven, net-bound pin.
+> - Item 3 (#66) — `apps/web/lib/live/firmware.ts`: derives the ESP32 `GPIO→netId` map
+>   from the schematic, runs the #65 translator, samples each PWL onto the run's time grid,
+>   and returns a `simulationRun` (`engine:"qemu"`) that `derive.ts` consumes unchanged —
+>   so an emulated GPIO2 blink animates the on-canvas LED. Live-view fidelity: the driven
+>   net's voltage is taken as the PWL source level (VOH/0) rather than re-solved through
+>   WASM ngspice, consistent with ADR-0013's visual-fidelity stance; the PWL cards stay the
+>   canonical stimulus for a verification-grade ngspice re-run.
 
 ## The gap this closes
 
@@ -164,3 +177,7 @@ when implementation lands:
    (resolves the remaining mixed-signal question).
 
 Items 1–3 are the concrete Phase-1.5 loop; item 4 is the Phase-2 bidirectional door.
+
+**Status:** items 1 (#64), 2 (#65) and 3 (#66) are ✅ landed — the poll→PWL→derive loop
+now blinks the on-canvas LED end to end (see the implementation-status note at the top of
+this file). Item 4 is still an open spike.
