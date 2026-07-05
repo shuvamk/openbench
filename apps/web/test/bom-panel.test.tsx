@@ -88,7 +88,8 @@ describe("BomPanel", () => {
   });
 
   it("Export CSV triggers a download of the bill of materials", () => {
-    const createObjectURL = vi.fn(() => "blob:mock");
+    // Type the Blob arg so `mock.calls[0][0]` is a Blob, not an empty tuple.
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:mock");
     const revokeObjectURL = vi.fn();
     (URL as unknown as { createObjectURL: unknown }).createObjectURL = createObjectURL;
     (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = revokeObjectURL;
