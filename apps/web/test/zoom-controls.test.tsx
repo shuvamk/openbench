@@ -131,6 +131,15 @@ describe("ZoomControls", () => {
   });
 });
 
+// jsdom has no PointerEvent constructor; MouseEvent-based synthetic pointer
+// events preserve button/shiftKey/clientX/clientY (mirrors editor-canvas.test).
+function pointer(
+  type: "pointerdown" | "pointermove" | "pointerup",
+  props: { button?: number; shiftKey?: boolean; clientX?: number; clientY?: number },
+) {
+  return new MouseEvent(type, { bubbles: true, cancelable: true, ...props });
+}
+
 describe("SchematicCanvas — Figma-style drag-pan", () => {
   beforeEach(seedStore);
   afterEach(cleanup);
@@ -139,12 +148,12 @@ describe("SchematicCanvas — Figma-style drag-pan", () => {
     const { container } = render(<SchematicCanvas />);
     const svg = container.querySelector('[data-testid="schematic-canvas"]')!;
     const panBefore = { ...useEditorStore.getState().pan };
-    fireEvent.pointerDown(svg, { button: 0, pointerId: 1, clientX: 200, clientY: 200 });
-    fireEvent.pointerMove(svg, { button: 0, pointerId: 1, clientX: 260, clientY: 240 });
+    fireEvent(svg, pointer("pointerdown", { button: 0, clientX: 200, clientY: 200 }));
+    fireEvent(svg, pointer("pointermove", { button: 0, clientX: 260, clientY: 240 }));
     const panAfter = useEditorStore.getState().pan;
     expect(panAfter.x).toBe(panBefore.x + 60);
     expect(panAfter.y).toBe(panBefore.y + 40);
-    fireEvent.pointerUp(svg, { button: 0, pointerId: 1, clientX: 260, clientY: 240 });
+    fireEvent(svg, pointer("pointerup", { button: 0, clientX: 260, clientY: 240 }));
   });
 
   it("left-drag on a component moves it and does NOT pan", () => {
@@ -152,23 +161,26 @@ describe("SchematicCanvas — Figma-style drag-pan", () => {
     const svg = container.querySelector('[data-testid="schematic-canvas"]')!;
     const r1 = container.querySelector('[data-instance-id="R1"]')!;
     const panBefore = { ...useEditorStore.getState().pan };
-    fireEvent.pointerDown(r1, { button: 0, pointerId: 2, clientX: 40, clientY: 40 });
-    fireEvent.pointerMove(svg, { button: 0, pointerId: 2, clientX: 120, clientY: 90 });
+    fireEvent(r1, pointer("pointerdown", { button: 0, clientX: 40, clientY: 40 }));
+    fireEvent(svg, pointer("pointermove", { button: 0, clientX: 120, clientY: 90 }));
     // The instance moved…
     const placement = useEditorStore.getState().bundle!.schematic.layout!.instances["R1"]!;
     expect(placement.x).not.toBe(40);
     // …and the pan did not change.
     expect(useEditorStore.getState().pan).toEqual(panBefore);
-    fireEvent.pointerUp(svg, { button: 0, pointerId: 2, clientX: 120, clientY: 90 });
+    fireEvent(svg, pointer("pointerup", { button: 0, clientX: 120, clientY: 90 }));
   });
 
   it("shift + left-drag on empty background box-selects instead of panning", () => {
     const { container } = render(<SchematicCanvas />);
     const svg = container.querySelector('[data-testid="schematic-canvas"]')!;
-    fireEvent.pointerDown(svg, { button: 0, pointerId: 3, shiftKey: true, clientX: 0, clientY: 0 });
-    fireEvent.pointerMove(svg, { button: 0, pointerId: 3, shiftKey: true, clientX: 700, clientY: 500 });
-    // A marquee rectangle should be present during a box-select drag.
+    const panBefore = { ...useEditorStore.getState().pan };
+    fireEvent(svg, pointer("pointerdown", { button: 0, shiftKey: true, clientX: 0, clientY: 0 }));
+    fireEvent(svg, pointer("pointermove", { button: 0, shiftKey: true, clientX: 700, clientY: 500 }));
+    // A marquee rectangle should be present during a box-select drag…
     expect(container.querySelector("[data-marquee]")).not.toBeNull();
-    fireEvent.pointerUp(svg, { button: 0, pointerId: 3, shiftKey: true, clientX: 700, clientY: 500 });
+    // …and shift-drag must not pan.
+    expect(useEditorStore.getState().pan).toEqual(panBefore);
+    fireEvent(svg, pointer("pointerup", { button: 0, shiftKey: true, clientX: 700, clientY: 500 }));
   });
 });

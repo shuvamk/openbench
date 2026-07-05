@@ -1,5 +1,6 @@
 import type { Component, Schematic } from "@openbench/ir-schema";
 import { refPrefix, type Point } from "./mutations";
+import { clampZoom, MAX_ZOOM } from "./store";
 
 /**
  * Symbol geometry shared by the canvas renderer and wire routing. All pin
@@ -268,4 +269,73 @@ export function orthogonalPoints(a: Point, b: Point): Point[] {
 
 export function toPolylinePoints(points: Point[]): string {
   return points.map((p) => `${p.x},${p.y}`).join(" ");
+}
+
+/** World-space axis-aligned bounds of a placed component (center + half-extents). */
+export interface ComponentBounds {
+  x: number;
+  y: number;
+  halfWidth: number;
+  halfHeight: number;
+}
+
+export interface Viewport {
+  width: number;
+  height: number;
+}
+
+export interface View {
+  zoom: number;
+  pan: Point;
+}
+
+/** Fraction of the viewport left as breathing room around framed content. */
+const FIT_MARGIN = 0.1;
+
+/**
+ * Compute a `{zoom, pan}` view that frames every component's bounds inside the
+ * viewport with a small margin, zoom clamped to `[MIN_ZOOM, MAX_ZOOM]`. Screen
+ * space is `screen = world * zoom + pan`, so the content bbox center is mapped
+ * to the viewport center. An empty schematic (or a degenerate viewport) returns
+ * the identity/default view — never NaN.
+ */
+export function fitToContent(components: ComponentBounds[], viewport: Viewport): View {
+  const identity: View = { zoom: 1, pan: { x: 0, y: 0 } };
+  if (
+    components.length === 0 ||
+    !(viewport.width > 0) ||
+    !(viewport.height > 0)
+  ) {
+    return identity;
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const c of components) {
+    minX = Math.min(minX, c.x - c.halfWidth);
+    minY = Math.min(minY, c.y - c.halfHeight);
+    maxX = Math.max(maxX, c.x + c.halfWidth);
+    maxY = Math.max(maxY, c.y + c.halfHeight);
+  }
+
+  const contentWidth = maxX - minX;
+  const contentHeight = maxY - minY;
+  const usableWidth = viewport.width * (1 - FIT_MARGIN);
+  const usableHeight = viewport.height * (1 - FIT_MARGIN);
+
+  // Guard the zero-extent case (all bounds collapsed to a point).
+  const zoomX = contentWidth > 0 ? usableWidth / contentWidth : MAX_ZOOM;
+  const zoomY = contentHeight > 0 ? usableHeight / contentHeight : MAX_ZOOM;
+  const zoom = clampZoom(Math.min(zoomX, zoomY));
+
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const pan: Point = {
+    x: viewport.width / 2 - centerX * zoom,
+    y: viewport.height / 2 - centerY * zoom,
+  };
+
+  return { zoom, pan };
 }
