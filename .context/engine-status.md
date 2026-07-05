@@ -9,7 +9,7 @@
 | IR core | `packages/ir-schema` | **wired** — all six kinds | pure TS (zod) |
 | Netlist compiler | `packages/netlist-compiler` | **wired** | pure TS |
 | Registry | `packages/registry` | **wired** — 32 curated parts | pure TS data |
-| KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
+| KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli — **desktop pivot needs no native kicad-cli, spike #120** |
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep/op, WASM+mock+native backends | WASM (`eecircuit-engine`) in-browser; native CLI feature-detected (rawfile parser, real-binary run pending) |
 | SPICE netlist | `packages/mcp-sim-ngspice` (`spice-netlist.ts`) | **partial** — flat deck ↔ netlist IR, round-trip via escape hatch | pure-TS `.cir`/`.net` parser + serializer |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
@@ -92,6 +92,24 @@
   graphics (wires-as-drawn, junctions, frames) not modeled; (3) sheet hierarchy
   unsupported (Phase 1 scope); (4) symbol library definitions not embedded on export
   (symbols are reference-only).
+- **Desktop-pivot native-binary need — NONE (spike #120, hypothesis confirmed).**
+  KiCad's role in openbench is the `.kicad_sch` **interchange** (import/export/validate),
+  which the pure-TS S-expression parser above already does end-to-end with no external
+  process. The desktop pivot bundles native binaries for **compute** engines whose real
+  output WASM/mock can't reproduce (`ngspice` solve, `pio run` build, `qemu-system-xtensa`
+  emulation/flash). `kicad-cli` is not a compute engine for us — it is a
+  renderer/fab/DRC/BOM/netlist-export tool, and every job it would do is either handled
+  natively by openbench or out of scope:
+  - **Schematic rendering** → openbench draws its own SVG canvas (`apps/web` `SchematicCanvas`); it never needs `kicad-cli sch export svg/pdf`.
+  - **ERC** → `@openbench/erc` is openbench's own rule engine; it never shells to `kicad-cli sch erc`.
+  - **Symbol/library resolution** → the curated `@openbench/registry` (32 parts) is the source of symbols; foreign-file symbols import heuristically (reference-only, with warnings). No `.kicad_sym` library resolution is required for Phase-1 flat single-sheet schematics — already the parser's documented limit.
+  - **PCB layout / gerbers / drill / STEP / footprints** → an **explicit non-goal** (CLAUDE.md: "PCB layout/fab (deferred)"), so no `kicad-cli pcb *` surface is ever invoked.
+  ⇒ `mcp-kicad` needs **zero** native binary bundling for the desktop pivot; the "real
+  `kicad-cli`" item should be **dropped from the desktop-pivot ADR's native-engine scope**
+  (it is currently listed on the unmerged `desktop-pivot-adr` branch alongside
+  ngspice/pio/qemu — tracked in issue #159). If a later, out-of-Phase-1 feature ever needs
+  KiCad-native rendering or PCB output, that is a fresh, separately-scoped feature — not
+  part of this Epic.
 
 ## ngspice (`packages/mcp-sim-ngspice`)
 
