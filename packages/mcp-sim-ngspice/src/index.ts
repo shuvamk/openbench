@@ -28,6 +28,14 @@ export {
 } from "./deck";
 export { decodeSamples, encodeSamples, encodeTextAsDataUri } from "./samples";
 export {
+  exportNetlist,
+  importNetlist,
+  validate,
+  type ImportResult,
+  type ImportSuccess,
+  type ImportFailure,
+} from "./spice-netlist";
+export {
   EECircuitBackend,
   MockBackend,
   NativeNgspiceBackend,
