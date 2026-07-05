@@ -12,7 +12,7 @@
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep, WASM+mock backends | WASM (`eecircuit-engine`) in-browser; native CLI pending |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
-| QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader, no live emulator yet) | qemu-system-xtensa launch stub (ADR-0011); firmware-in-the-loop step 1 (#64) |
+| QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader, no live emulator yet) | qemu-system-xtensa launch stub (ADR-0011); firmware-in-the-loop steps 1 (#64) & 2 (#65 GPIO->PWL) |
 
 ## IR core (`packages/ir-schema`)
 
@@ -124,8 +124,22 @@
   edge-triggered `(t, gpio, level)` events for *driven* pins only, plus a `pollGpio` run
   loop (injectable clock/sleep). 13 tests. The transport and QEMU-launch (`-s` GDB
   server) are the injectable seams — no real emulator runs in CI yet.
-- Gaps: the concrete socket transport + QEMU process launch/observe are step 2 (not yet
-  wired); no real `pio run` exercised in CI; no end-to-end flash-to-emulator execution
+- Firmware-in-the-loop step 2 (issue #65): `gpio-pwl.ts` — `gpioEventsToPwl`, a pure fn
+  turning the poller's `(t, gpio, level)` timeline plus an `esp32PinNetMap` (gpio ->
+  SPICE node) into PWL 'V' source cards so ngspice sees firmware-driven pins. Each driven
+  pin becomes a Thevenin driver: `Vgpio<N> n_gpio<N> 0 PWL(...)` (HIGH -> VOH 3.3V, LOW ->
+  0V, each edge held-then-ramped over ~1us so dv/dt is finite) behind `Rgpio<N> n_gpio<N>
+  <net> 30` (~30 ohm output impedance), mirroring the netlist-compiler SIN/DC source-card
+  path. Event `t` is ms, PWL time is seconds. 12 tests.
+  - **Hi-Z is lossy**: a plain V+R Thevenin source cannot open-circuit, so `"Z"` samples
+    emit no breakpoint; a pin that is only ever Hi-Z (or absent from the stream) emits no
+    card (net floats — correct "no drive"). Interior Hi-Z windows are approximated as a
+    hold of the surrounding driven levels; true tri-state would need a switched source
+    (deferred).
+- Gaps: the concrete socket transport + QEMU process launch/observe are still unwired (the
+  poller runs off an injected `MemoryReader`); `gpioEventsToPwl` output is not yet spliced
+  into a compiled netlist deck (wiring the source cards into the ngspice run is a
+  follow-up); no real `pio run` exercised in CI; no end-to-end flash-to-emulator execution
   yet. MCP `server.ts` wrappers landed for all three adapters (issue #20); bin
   distribution needs a TS build step (packaging follow-up).
 
