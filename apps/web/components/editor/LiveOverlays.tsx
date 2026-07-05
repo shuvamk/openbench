@@ -19,8 +19,12 @@ const HIGHLIGHT = "var(--ob-net-highlight)";
 /** Visual rotor speed at rpmFraction = 1 (revolutions per played second). */
 const MAX_VISUAL_RPS = 2.5;
 
-/** LED-ish warm glow color; lamp uses the same. Halo only — symbols stay tokened. */
-const GLOW = "var(--ob-net-highlight)";
+/**
+ * Single-color LED / lamp emission halo. A dedicated warm token (issue #75) so
+ * a lit LED reads as "a light turned on," not the net-highlight used for wire
+ * selection. Halo only — the symbol bodies stay on their neutral tokens.
+ */
+const GLOW = "var(--ob-led-glow)";
 // The RGB LED's three channels are inherently literal colors — the one
 // justified exception to the no-raw-color rule (they represent red/green/blue
 // light itself, not themeable UI chrome).

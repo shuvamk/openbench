@@ -14,6 +14,12 @@
   --ob-symbol-stroke: var(--xds-color-text-primary, #171717);
   --ob-pin: var(--xds-color-text-secondary, #525252);
   --ob-selection: color-mix(in srgb, var(--xds-color-text-link, #2563eb) 18%, transparent);
+  /* Live-mode single-color LED / lamp emission halo (issue #75). A warm amber
+     that reads as "a light turned on," distinct from the net-highlight token
+     used for wire/net selection. Like the RGB LED's literal per-channel colors,
+     this is the documented exception to the no-raw-color rule: it represents
+     emitted light, not themeable UI chrome. */
+  --ob-led-glow: #ffb020;
   /* ERC badge colors (issue #71) derive from the theme's feedback tokens. */
   --ob-erc-error: var(--color-error, #a50c25);
   --ob-erc-warning: var(--color-warning, #745b00);
