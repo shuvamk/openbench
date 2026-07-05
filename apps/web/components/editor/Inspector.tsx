@@ -10,6 +10,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/Stack";
 import { useEditorStore } from "../../lib/editor/store";
+import { ErcPanel } from "./ErcPanel";
 
 /** Right rail: selected instance details, parameter editing, connected nets. */
 export function Inspector() {
@@ -33,7 +34,10 @@ export function Inspector() {
         boxSizing: "border-box",
       }}
     >
-      {!instance || !component || !schematic ? (
+      <VStack gap={4}>
+        {/* Circuit-wide ERC issues, always on top; self-hides when clean. */}
+        <ErcPanel />
+        {!instance || !component || !schematic ? (
         <VStack gap={2}>
           <Text type="label" color="secondary">
             Inspector
@@ -100,6 +104,7 @@ export function Inspector() {
           </VStack>
         </VStack>
       )}
+      </VStack>
     </div>
   );
 }
