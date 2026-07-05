@@ -7,14 +7,18 @@
 
 ## Mission
 
-Browser-based, open-source, collaborative platform for embedded/electronics projects:
-schematic → simulation → firmware, orchestrating existing open engines (KiCad, ngspice,
-Renode/QEMU, PlatformIO/Zephyr) behind one canonical interchange format (the IR), driven
-by AI agents via MCP.
+Open-source platform for embedded/electronics projects, distributed as a single
+installable desktop app (macOS DMG, Windows installer): schematic → simulation →
+firmware, orchestrating existing open engines (KiCad, ngspice, Renode/QEMU,
+PlatformIO/Zephyr) behind one canonical interchange format (the IR), driven by AI agents
+via MCP. The target user installs one file and every engine runs natively, offline, with
+no setup step — see **ADR-0024** for the pivot from the earlier browser/Vercel-hosted
+model.
 
 **Non-goals:** re-implementing engines; treating any engine-native format as source of
 truth; PCB layout/fab (deferred); multiplayer/CRDT collaboration (deferred to Phase 2 —
-do not build early).
+do not build early); maintaining the Vercel-hosted browser deploy as a first-class target
+once the desktop pivot (ADR-0024, Phase 1.5) lands.
 
 ## Full-autonomy operating rule
 
