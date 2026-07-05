@@ -16,6 +16,12 @@ export {
   type DeriveOptions,
   type RecordingBatch,
 } from "./record";
+export {
+  MockLessonAI,
+  defaultLessonAI,
+  type LessonAI,
+  type TutorContext,
+} from "./ai";
 export type {
   ClauseResult,
   ComponentClause,
