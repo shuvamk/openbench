@@ -66,7 +66,7 @@ describe("bootstrap", () => {
     delete process.env.OPENBENCH_DESKTOP_ENV;
   });
 
-  it("opens a window once Electron is ready and quits on all-windows-closed off macOS", async () => {
+  it("opens a window once Electron is ready and registers lifecycle handlers", async () => {
     bootstrap();
 
     // The window is created only after app.whenReady() resolves.
@@ -79,5 +79,27 @@ describe("bootstrap", () => {
     const events = app.on.mock.calls.map((call) => call[0]);
     expect(events).toContain("activate");
     expect(events).toContain("window-all-closed");
+  });
+
+  it("quits when all windows close off macOS, but stays alive on macOS", () => {
+    bootstrap();
+    const handler = app.on.mock.calls.find(([event]) => event === "window-all-closed")?.[1] as
+      | (() => void)
+      | undefined;
+    expect(handler).toBeDefined();
+
+    const original = process.platform;
+    try {
+      Object.defineProperty(process, "platform", { value: "linux", configurable: true });
+      handler?.();
+      expect(app.quit).toHaveBeenCalledTimes(1);
+
+      Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+      handler?.();
+      // macOS convention: the app stays open with no windows, so no extra quit.
+      expect(app.quit).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(process, "platform", { value: original, configurable: true });
+    }
   });
 });
