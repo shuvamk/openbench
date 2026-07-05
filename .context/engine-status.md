@@ -12,7 +12,7 @@
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep, WASM+mock backends | WASM (`eecircuit-engine`) in-browser; native CLI pending |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
-| QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config generation | qemu-system-xtensa launch stub (ADR-0011) |
+| QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader, no live emulator yet) | qemu-system-xtensa launch stub (ADR-0011); firmware-in-the-loop step 1 (#64) |
 
 ## IR core (`packages/ir-schema`)
 
@@ -117,7 +117,15 @@
   validateFirmwareTarget-clean IR. 24 tests.
 - Q2 resolved → ADR-0011: **QEMU (qemu-xtensa-esp32) over Renode** for ESP32 virtual
   flash; `generateVirtualMachineConfig` emits a qemu-system-xtensa launch stub.
-- Gaps: no real `pio run` exercised in CI; no end-to-end flash-to-emulator execution
+- Firmware-in-the-loop step 1 (issue #64): `gdb-rsp.ts` — a thin GDB Remote Serial
+  Protocol codec (checksum/frame, `m addr,len` reads, little-endian word decode) plus a
+  transport-injected `RspMemoryReader`; `gpio-poller.ts` — a `GpioPoller` that samples
+  the ESP32 GPIO_OUT/GPIO_OUT1/GPIO_ENABLE/GPIO_ENABLE1 registers and emits
+  edge-triggered `(t, gpio, level)` events for *driven* pins only, plus a `pollGpio` run
+  loop (injectable clock/sleep). 13 tests. The transport and QEMU-launch (`-s` GDB
+  server) are the injectable seams — no real emulator runs in CI yet.
+- Gaps: the concrete socket transport + QEMU process launch/observe are step 2 (not yet
+  wired); no real `pio run` exercised in CI; no end-to-end flash-to-emulator execution
   yet. MCP `server.ts` wrappers landed for all three adapters (issue #20); bin
   distribution needs a TS build step (packaging follow-up).
 

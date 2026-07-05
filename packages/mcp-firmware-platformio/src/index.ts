@@ -23,6 +23,25 @@ export {
   type FirmwareBuildResult,
 } from "./backend";
 export { generateVirtualMachineConfig, type VirtualMachineConfig } from "./machine";
+export {
+  RspMemoryReader,
+  buildReadMemoryPacket,
+  frame,
+  parseMemoryResponse,
+  rspChecksum,
+  type MemoryReader,
+  type RspTransport,
+} from "./gdb-rsp";
+export {
+  GPIO_ENABLE1_REG,
+  GPIO_ENABLE_REG,
+  GPIO_OUT1_REG,
+  GPIO_OUT_REG,
+  GpioPoller,
+  pollGpio,
+  type GpioEvent,
+  type PollGpioOptions,
+} from "./gpio-poller";
 export { validateFirmwareTarget, type FirmwareTarget };
 
 /** Provenance source stamped on every document this adapter produces. */
