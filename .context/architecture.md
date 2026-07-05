@@ -138,6 +138,27 @@ Status of each: [engine-status.md](engine-status.md).
   simulation panel compiles via netlist-compiler + registry resolver and consumes
   `simulationRun` IR (waveform-v1, inline samples).
 
+### 5. Desktop shell — `apps/desktop`
+- Electron shell that wraps the `apps/web` UI, first slice of the desktop pivot
+  (ADR-0024). Main process (`src/main.ts`): `createMainWindow()` opens one
+  `BrowserWindow` and, in dev (`OPENBENCH_DESKTOP_ENV=dev`), loads `next dev` at
+  `http://localhost:3000`; otherwise loads the packaged static export
+  (`apps/web/out/index.html`) via `loadFile`. Renderer is hardened —
+  `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true` — so the web UI
+  reaches the main process only through the `window.openbench` bridge established in
+  `src/preload.ts` (`contextBridge.exposeInMainWorld`).
+- Scaffold only: no engine execution, no `apps/desktop-backend` wiring, no packaging.
+  `apps/web` is unchanged and still a plain Next.js UI package. Native engine backends,
+  static-export of `apps/web`, and `electron-builder` installers are tracked by the
+  later desktop-pivot issues. The scaffold is only type-checked and unit-tested
+  (electron mocked via vitest), never launched, so electron's ~150MB prebuilt binary
+  is not needed: a committed root `.npmrc` sets `ignore-scripts=true`, which skips
+  electron's postinstall download on every `npm ci` (CI, Vercel, fresh clone) while
+  still shipping its `.d.ts` for the `tsc` build. Explicit `npm run build`/`npm test`
+  are unaffected — npm suppresses only dependency lifecycle scripts, not the invoked
+  script. When the desktop app must actually run, fetch the binary with
+  `npm rebuild electron` or `--foreground-scripts`.
+
 ## Persistence
 
 - Phase 1 (current): projects persist client-side (IndexedDB via a thin storage
@@ -167,5 +188,9 @@ Status of each: [engine-status.md](engine-status.md).
   simulation panel (run → waveforms → console). Remaining: browser verification of the
   WASM ngspice backend, MCP server wrappers, real pio/QEMU execution paths per
   [engine-status.md](engine-status.md).
+- **Desktop pivot (in progress, ADR-0024):** moving from browser/Vercel-hosted to a
+  downloadable Electron app backed by a native local backend. First slice landed — the
+  `apps/desktop` Electron shell scaffold (above). Native engine backends, per-OS binary
+  bundling, and `electron-builder` installers follow.
 - **Phase 2 (deferred):** multiplayer/CRDT collaboration, community registry service,
   more MCU families, PCB layout.
