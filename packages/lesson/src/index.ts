@@ -8,6 +8,14 @@
  * .context/design/teaching-mode.md (ADR-0022).
  */
 export { evaluateStep } from "./evaluate";
+export {
+  deriveStepsFromRecording,
+  loosenConstraints,
+  mergeSteps,
+  splitStep,
+  type DeriveOptions,
+  type RecordingBatch,
+} from "./record";
 export type {
   ClauseResult,
   ComponentClause,
