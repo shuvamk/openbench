@@ -431,3 +431,44 @@ LED Display" example (using the real `cmp_7segment_display`, `cmp_vsource_dc`,
 are unblocked: (1) lesson core (types + `evaluateStep`, dep #35/#44 — both closed), (2)
 authoring-by-recording (dep #18 — closed), (3) student runner panel (dep #40), (4) lesson
 share + AI seam (dep #40, #43). Follows ADR-0021.
+
+## ADR-0023 — `education` block: optional UI metadata on the component IR; live knob carries the "fun" (spike #77, 2026-07-05)
+
+**Context:** Epic #76 proposes just-in-time, per-component micro-learning. Spike #77
+(the gate) had to validate the format and settle the `education` IR shape against two
+hero parts (LED + resistor) before the four blocked children (#78 ir-schema / #79
+registry / #80 Learn panel / #81 live knob) start. Full finding:
+[.context/findings/spike-77-education-ir.md](findings/spike-77-education-ir.md).
+
+**Decision:** **GO.** Add an **optional, additive** `education` object to the
+`component` IR kind — `summary?`, `gotchas?: string[]`, `keyFormula?: {display,
+variables}`, `paramNotes?: Record<param,string>`, `interactiveHint?`. Every subfield
+optional → existing components stay valid → **patch bump `irVersion` 0.1.0 → 0.1.1**
+(`ir-schema-guard` confirms non-breaking; adapters ignore it as read-only human
+metadata). Two hard distinctions: (1) `education` is **UI metadata, never simulated**
+— `keyFormula.display` is display-only text, unlike the evaluated `simModel.derivedParams`;
+(2) **no `skillLevel` field** — beginner/expert gating is a UI preference so one document
+serves all readers. The one refinement to the straw-man: `interactiveHint` gains an
+**optional `targetComponentId`** so the "try it" knob can address a parameter on a
+*series* part — the LED declares no params, so its brightness knob lives on the series
+resistor. Shape: `{ targetParam, targetComponentId?, observe, prompt }`; omit
+`targetComponentId` → edit the subject's own param (resistor case).
+
+**Rationale:** Hand-filling the block for both hero parts captured everything a beginner
+needs with **zero per-part custom code** — so **no per-part escape hatches in the IR**
+(they invite a content treadmill; revisit only with evidence). The live knob is what
+delivers the "aha," and it is nearly free: `deriveInstanceStates`
+(`apps/web/lib/live/derive.ts`) already emits `current` + `brightness` for LEDs. A
+throwaway calc with the repo's own Shockley model shows a 5 V+R+LED loop sweeps
+brightness 100%→2% as R goes 220 Ω→10 kΩ, with the current readout doubling as the
+"you'll cook the LED" safety lesson — genuinely fun, and #81 is just "override a param →
+re-run the existing sim → highlight the existing series," not new physics. The three
+hint fields generalize to any part (motor `vnominal`→`rpmFraction`, lamp series-R→
+`intensity`), so the panel stays generic and content authors pick the target.
+
+**Consequences:** Unblocks #78→#79→#80→#81 with concrete specs (§5 of the finding),
+including verbatim LED + resistor `education` content for #79 and the resolution rule
+for `interactiveHint` (own-param vs nearest-series-target; hide if unresolved). Learn
+panel default: present-but-collapsed, mirroring the `hasLiveVisual` contextual-nudge
+precedent (derive.ts:123). `paramNotes` unknown-key handling is a **soft warning** in
+`refineComponent`, not an error. Follows ADR-0022.
