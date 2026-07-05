@@ -339,9 +339,15 @@ Dependency order (each depends on the one above). All four filed by this spike:
    closed) — **unblocked now**. Enables 2–4.
 2. **[#90] authoring by recording** (p2) — `deriveStepsFromRecording` + teaching-author
    editor mode. **Depends on:** #89, #18 (undo history, closed).
-3. **[#91] student runner panel** (p2) — the step-by-step UI: live re-evaluation on IR
-   mutation, per-clause progress, hints, `allowAutoPlace`. **Depends on:** #89;
-   #40 (share, open) for loading a lesson link.
+3. **[#91] student runner panel** (p2) — **DONE (#91).** `apps/web/lib/lesson/runner.ts`
+   (`deriveRunnerView`, pure) + `apps/web/components/lesson/StudentRunnerPanel.tsx`: a
+   side panel that subscribes to the editor IR store, debounces, re-evaluates every step
+   via `evaluateStep`, and drives a linear stepper — per-clause checklist, greens +
+   advances the active step on pass, keeps it red with its hint on a wrong value, and
+   surfaces ERC issues as inline non-blocking warnings (§3.4). The `allowAutoPlace`
+   "do it for me" affordance is **deferred to a follow-up** — it needs a minimal-
+   satisfying-mutation engine derived from `targetBundle`, out of scope for the
+   validation panel. Loading a lesson from a share link is #92's codec work.
 4. **[#92] lesson share + AI seam** (p2) — `.openbench-lesson.json` + URL codec on the
    #40 share codec; `LessonAI` interface + `MockLessonAI`; wire real key-backed
    impl behind #43's provider. **Depends on:** #89, #40 (share, open), #43 (AI, open).
