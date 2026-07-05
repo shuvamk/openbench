@@ -90,6 +90,12 @@ Status of each: [engine-status.md](engine-status.md).
   parameter overrides and re-run the simulation debounced. Overlays render inside the
   canvas world transform; interactive parts (button/switch/pot/LDR) are actuated
   directly on the canvas in Live mode.
+- Discoverability nudge (issue #73): `derive.ts` exposes `hasLiveVisual(schematic,
+  resolveComponent)` (reusing the internal `liveKind` classification, so new visual parts
+  opt in automatically). After a *successful* Design-mode run on a circuit that has
+  something Live can show (LED/RGB/motor/buzzer/lamp), `components/editor/LiveNudge.tsx`
+  raises a dismissible Banner pointing at Live. `store.ts` holds the `nudge` flag;
+  it fires once per completed run and clears on entering Live or on dismiss.
 - `firmware.ts` (firmware-in-the-loop step 3, ADR-0018): joins the emulator side to the
   live view. Derives the ESP32 `GPIO→netId` map from the schematic, runs the
   `@openbench/mcp-firmware-platformio` `gpioEventsToPwl` translator on the poller's event
