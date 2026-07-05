@@ -15,7 +15,7 @@ import {
   useEditorStore,
   type ProjectStoreLike,
 } from "../lib/editor/store";
-import { __setSimBackendFactoryForTests } from "../lib/sim/run";
+import { __setSimBackendFactoryForTests, createFallbackBackend } from "../lib/sim/run";
 import { resetSimState, useSimStore } from "../lib/sim/store";
 import { WaveformViewer, type WaveformTrace } from "../components/sim/WaveformViewer";
 import { SimPanel } from "../components/sim/SimPanel";
@@ -268,6 +268,34 @@ describe("SimPanel", () => {
     expect(screen.getByTestId("sim-console").textContent).toContain("cmp_does_not_exist");
   });
 
+  it("shows a mock-backend badge when the run silently fell back to the mock backend", async () => {
+    seedEditor();
+    __setSimBackendFactoryForTests(() =>
+      createFallbackBackend(
+        { name: "eecircuit", run: () => Promise.reject(new Error("wasm exploded")) },
+        new MockBackend(),
+        () => {},
+      ),
+    );
+    render(withTheme(<SimPanel />));
+    fireEvent.click(screen.getByRole("button", { name: "Run simulation" }));
+    await waitFor(() => {
+      expect(useSimStore.getState().usedMockFallback).toBe(true);
+    });
+    expect(screen.getByTestId("sim-mock-fallback-badge")).not.toBeNull();
+    expect(screen.getByTestId("sim-mock-fallback-badge").textContent).toMatch(/mock/i);
+  });
+
+  it("does not show the mock-backend badge on a real (non-fallback) run", async () => {
+    seedEditor();
+    render(withTheme(<SimPanel />));
+    fireEvent.click(screen.getByRole("button", { name: "Run simulation" }));
+    await waitFor(() => {
+      expect(useSimStore.getState().status).toBe("completed");
+    });
+    expect(screen.queryByTestId("sim-mock-fallback-badge")).toBeNull();
+  });
+
   it("Firmware tab explains the Phase 1 local PlatformIO story and shows target status", () => {
     seedEditor((bundle) => {
       bundle.firmwareTarget = {
@@ -313,5 +341,38 @@ describe("RunButton", () => {
       expect(useSimStore.getState().status).toBe("completed");
     });
     expect(useEditorStore.getState().bundle!.simulationRuns?.length).toBe(1);
+  });
+
+  it("surfaces the current run phase as text while a simulation is in flight", async () => {
+    seedEditor();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    __setSimBackendFactoryForTests(() => ({
+      name: "eecircuit",
+      async run(deck: string, probes: string[]) {
+        await gate;
+        return new MockBackend().run(deck, probes);
+      },
+    }));
+
+    render(withTheme(<RunButton />));
+    fireEvent.click(screen.getByRole("button", { name: "Run simulation" }));
+
+    await waitFor(() => {
+      expect(useSimStore.getState().phase).toBe("simulating");
+    });
+    // The button (or its label) tells the user what is running.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Run simulation" }).textContent).toMatch(
+        /simulating/i,
+      );
+    });
+
+    release();
+    await waitFor(() => {
+      expect(useSimStore.getState().phase).toBe("done");
+    });
   });
 });

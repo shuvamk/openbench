@@ -17,7 +17,7 @@ import {
   runProjectSimulation,
   type ConsoleEntry,
 } from "../lib/sim/run";
-import { resetSimState, useSimStore, type SimStatus } from "../lib/sim/store";
+import { resetSimState, useSimStore, type SimPhase, type SimStatus } from "../lib/sim/store";
 
 function makeFakeStore(bundle: ProjectBundle) {
   const bundles = new Map([[bundle.project.id, bundle]]);
@@ -94,6 +94,37 @@ describe("runProjectSimulation", () => {
     expect(errors.some((e) => e.text.includes("cmp_does_not_exist"))).toBe(true);
   });
 
+  it("records the backend that actually ran, without a mock fallback, on a direct run", async () => {
+    const bundle = createFromTemplate("rc-lowpass", "RC");
+    const result = await runProjectSimulation(bundle, { backend: new MockBackend() });
+    expect(result.backendUsed).toBe("mock");
+    expect(result.usedMockFallback).toBe(false);
+  });
+
+  it("flags a mock fallback when the primary backend throws", async () => {
+    const bundle = createFromTemplate("rc-lowpass", "RC");
+    const fallbackEcho: ConsoleEntry[] = [];
+    const backend = createFallbackBackend(
+      { name: "eecircuit", run: () => Promise.reject(new Error("wasm exploded")) },
+      new MockBackend(),
+      (entry) => fallbackEcho.push(entry),
+    );
+    const result = await runProjectSimulation(bundle, { backend });
+    expect(result.run?.status).toBe("completed");
+    expect(result.backendUsed).toBe("mock");
+    expect(result.usedMockFallback).toBe(true);
+  });
+
+  it("does not flag a fallback when the primary (eecircuit) succeeds", async () => {
+    const bundle = createFromTemplate("rc-lowpass", "RC");
+    const primary = new MockBackend();
+    (primary as { name: string }).name = "eecircuit";
+    const backend = createFallbackBackend(primary, new MockBackend(), () => {});
+    const result = await runProjectSimulation(bundle, { backend });
+    expect(result.backendUsed).toBe("eecircuit");
+    expect(result.usedMockFallback).toBe(false);
+  });
+
   it("returns invalid transient config as console entries without throwing", async () => {
     const bundle = createFromTemplate("rc-lowpass", "RC");
     const result = await runProjectSimulation(bundle, {
@@ -161,6 +192,49 @@ describe("sim store orchestration", () => {
 
     expect(statuses).toEqual(["queued", "running", "completed"]);
 
+    const finalState = useSimStore.getState();
+    expect(finalState.backendUsed).toBe("mock");
+    expect(finalState.usedMockFallback).toBe(false);
+  });
+
+  it("advances phase idle → compiling → simulating → done during a run", async () => {
+    const bundle = createFromTemplate("rc-lowpass", "RC");
+    makeFakeStore(bundle);
+    await useEditorStore.getState().loadProject(bundle.project.id);
+
+    const phases: SimPhase[] = [];
+    const unsubscribe = useSimStore.subscribe((state, previous) => {
+      if (state.phase !== previous.phase) phases.push(state.phase);
+    });
+
+    expect(useSimStore.getState().phase).toBe("idle");
+    await useSimStore.getState().runSimulation();
+    unsubscribe();
+
+    expect(phases).toEqual(["compiling", "simulating", "done"]);
+    expect(useSimStore.getState().phase).toBe("done");
+  });
+
+  it("sets phase to failed and surfaces the mock-fallback flag on a fallback run", async () => {
+    const bundle = createFromTemplate("rc-lowpass", "RC");
+    makeFakeStore(bundle);
+    await useEditorStore.getState().loadProject(bundle.project.id);
+    __setSimBackendFactoryForTests(() =>
+      createFallbackBackend(
+        { name: "eecircuit", run: () => Promise.reject(new Error("wasm exploded")) },
+        new MockBackend(),
+        () => {},
+      ),
+    );
+
+    await useSimStore.getState().runSimulation();
+
+    const state = useSimStore.getState();
+    expect(state.status).toBe("completed");
+    expect(state.phase).toBe("done");
+    expect(state.usedMockFallback).toBe(true);
+    expect(state.backendUsed).toBe("mock");
+
     const simState = useSimStore.getState();
     expect(simState.run?.status).toBe("completed");
     expect(simState.deck).toContain(".tran");
@@ -209,6 +283,7 @@ describe("sim store orchestration", () => {
 
     const simState = useSimStore.getState();
     expect(simState.status).toBe("failed");
+    expect(simState.phase).toBe("failed");
     expect(simState.run).toBeUndefined();
     expect(simState.consoleEntries.some((e) => e.level === "error")).toBe(true);
     expect(useEditorStore.getState().bundle!.simulationRuns ?? []).toEqual([]);
