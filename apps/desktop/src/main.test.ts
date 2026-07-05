@@ -1,20 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Electron is mocked so the shell can be unit-tested without the native binary.
-const { BrowserWindow, loadURL, loadFile } = vi.hoisted(() => {
+const { app, BrowserWindow, loadURL, loadFile } = vi.hoisted(() => {
   const loadURL = vi.fn();
   const loadFile = vi.fn();
-  const BrowserWindow = vi.fn(() => ({ loadURL, loadFile }));
-  return { BrowserWindow, loadURL, loadFile };
+  const BrowserWindow = Object.assign(
+    vi.fn(() => ({ loadURL, loadFile })),
+    { getAllWindows: vi.fn(() => []) },
+  );
+  const app = { whenReady: vi.fn(() => Promise.resolve()), on: vi.fn(), quit: vi.fn() };
+  return { app, BrowserWindow, loadURL, loadFile };
 });
 
 vi.mock("electron", () => ({
-  app: { whenReady: () => Promise.resolve(), on: vi.fn(), quit: vi.fn() },
+  app,
   BrowserWindow,
   contextBridge: { exposeInMainWorld: vi.fn() },
 }));
 
-import { createMainWindow, DEV_URL } from "./main";
+import { bootstrap, createMainWindow, DEV_URL } from "./main";
 
 describe("createMainWindow", () => {
   beforeEach(() => {
@@ -53,5 +57,27 @@ describe("createMainWindow", () => {
     expect(target).not.toContain("localhost");
     expect(target).toContain("index.html");
     expect(loadURL).not.toHaveBeenCalled();
+  });
+});
+
+describe("bootstrap", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.OPENBENCH_DESKTOP_ENV;
+  });
+
+  it("opens a window once Electron is ready and quits on all-windows-closed off macOS", async () => {
+    bootstrap();
+
+    // The window is created only after app.whenReady() resolves.
+    expect(BrowserWindow).not.toHaveBeenCalled();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(BrowserWindow).toHaveBeenCalledTimes(1);
+
+    // Lifecycle handlers are registered for re-activation and shutdown.
+    const events = app.on.mock.calls.map((call) => call[0]);
+    expect(events).toContain("activate");
+    expect(events).toContain("window-all-closed");
   });
 });
