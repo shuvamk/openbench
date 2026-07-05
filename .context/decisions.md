@@ -472,3 +472,32 @@ for `interactiveHint` (own-param vs nearest-series-target; hide if unresolved). 
 panel default: present-but-collapsed, mirroring the `hasLiveVisual` contextual-nudge
 precedent (derive.ts:123). `paramNotes` unknown-key handling is a **soft warning** in
 `refineComponent`, not an error. Follows ADR-0022.
+
+## ADR-0025 — Stateless sharing: the bundle rides in the URL (gzip + base64url); embed is read-only (issue #40, 2026-07-05)
+
+**Context.** Sharing a design — a link in a forum post, a simulator embedded in a
+blog/datasheet — is a primary growth loop (cf. Wokwi's embed). The constraint (ADR-0008,
+Phase 1) is *no server, no DB, no account*, and the non-goal is multiplayer/CRDT (Phase 2,
+`area:collab-engine` untouched). So sharing must be **stateless**: the whole
+`.openbench.json` bundle travels in the URL.
+
+**Decision.**
+- `apps/web/lib/share.ts`: `encodeShare(bundle)` = `gzip(JSON) → base64url`, using the
+  platform `CompressionStream`/`DecompressionStream` (no new dependency; available in
+  modern browsers and Node ≥18). `decodeShare` inverts it. Round-trip is exact
+  (`decodeShare(encodeShare(b))` deep-equals `b`).
+- A conservative `SHARE_URL_LIMIT` (8000 encoded chars) guards against link-hostile
+  intermediaries. Over the cap, `encodeShare` returns a structured
+  `{ ok:false, error:"too_large", size, limit }` — it **never throws**; the caller falls
+  back to file export.
+- Read-only hydration: the editor store gains a `readOnly` flag and `loadShared(bundle)`.
+  Both IR commit choke points (`commitBundle`/`commitSchematic`) early-return while
+  read-only, so *every* mutation entry point (place/move/rotate/connect/param/rename/…) is
+  a no-op without touching each action. `/embed/<payload>` renders minimal chrome
+  (name + Run + canvas) for iframes.
+
+**Consequences.** Sharing works with zero backend, honoring ADR-0008. Large designs
+degrade gracefully to file export rather than emitting a broken mega-URL. `readOnly` is a
+reusable primitive for any future view-only surface. Explicitly **not** collaboration:
+there is no shared mutable state, no presence, no CRDT — a shared link is a snapshot.
+Follows ADR-0008.

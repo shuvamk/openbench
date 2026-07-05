@@ -15,6 +15,7 @@ import { useLiveStore } from "../../lib/live/store";
 import { exportProjectToKicad } from "../../lib/kicad/io";
 import { RunButton } from "../sim/RunButton";
 import { BomButton } from "./BomButton";
+import { ShareButton } from "./ShareButton";
 import { LiveNudge } from "./LiveNudge";
 
 /** Trigger a browser download (same Blob + anchor pattern as the dashboard export). */
@@ -284,6 +285,10 @@ export function EditorTopBar() {
 
         <StackItem size="static">
           <BomButton />
+        </StackItem>
+
+        <StackItem size="static">
+          <ShareButton />
         </StackItem>
 
         <StackItem size="static">
