@@ -52,6 +52,19 @@ bash "$SUT" "$WT" || fail "preflight exited non-zero on a stale worktree"
   || fail "npm install ran in the wrong dir: $(cat "$NPM_STUB_MARKER") (want $WT)"
 echo "PASS: stale worktree triggered npm install at the worktree root"
 
+# --- Case 3: --check on a stale worktree → guard fails loudly, NO install -----
+# (guard semantics for issue #128: exit non-zero with an actionable message,
+#  never mutate the tree.)
+export NPM_STUB_MARKER="$TMP/case3-install"
+set +e
+OUT="$(bash "$SUT" --check "$WT" 2>&1)"; RC=$?
+set -e
+[[ $RC -ne 0 ]] || fail "--check exited 0 on a stale worktree (should fail loudly)"
+[[ -f "$NPM_STUB_MARKER" ]] && fail "--check ran npm install (guard must not mutate the tree)"
+echo "$OUT" | grep -qi "npm install" || fail "--check message did not mention 'npm install': $OUT"
+echo "$OUT" | grep -q "@openbench/foo" || fail "--check did not name the missing package: $OUT"
+echo "PASS: --check on a stale worktree failed loudly without installing"
+
 # --- Case 2: fully-linked worktree → no-op (no install) ----------------------
 mkdir -p "$WT/node_modules/@openbench/foo"
 printf '{"name":"@openbench/foo"}\n' > "$WT/node_modules/@openbench/foo/package.json"
@@ -59,5 +72,11 @@ export NPM_STUB_MARKER="$TMP/case2-install"
 bash "$SUT" "$WT" || fail "preflight exited non-zero on a fresh worktree"
 [[ -f "$NPM_STUB_MARKER" ]] && fail "npm install ran even though all packages resolve"
 echo "PASS: fully-linked worktree was a no-op"
+
+# --- Case 4: --check on a fully-linked worktree → exit 0 ----------------------
+export NPM_STUB_MARKER="$TMP/case4-install"
+bash "$SUT" --check "$WT" >/dev/null 2>&1 || fail "--check exited non-zero when all packages resolve"
+[[ -f "$NPM_STUB_MARKER" ]] && fail "--check ran npm install on a fully-linked worktree"
+echo "PASS: --check on a fully-linked worktree exited 0"
 
 echo "ALL PASS"
