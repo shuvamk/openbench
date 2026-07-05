@@ -18,10 +18,17 @@
 
 - Wired: all six kinds (`component`, `schematic`, `netlist`, `simulationRun`,
   `firmwareTarget`, `project`), `validateDocument` discriminated-union dispatcher,
-  version compatibility, structured `{ path, message }` errors. 63 package tests.
+  version compatibility, structured `{ path, message }` errors.
 - Additive fields (2026-07-02, patch-level): `component.simModel.modelCard` (SPICE
   `.model` line), `schematic.layout` (per-instance editor geometry, keys validated
   against declared instanceIds).
+- **IR version `0.1.1`** (2026-07-05, issue #78): first explicit patch bump
+  (`0.1.0 → 0.1.1`). Added `component.education?` — optional read-only teaching
+  metadata (`summary`, `gotchas[]`, `keyFormula{display,variables}`, `paramNotes`,
+  `interactiveHint{targetParam,targetComponentId?,observe,prompt}`). Additive/
+  non-breaking: `0.1.0` docs still validate (pre-1.0 patch diffs compatible),
+  `education` is exported as the `Education` type, and adapters ignore it (no
+  round-trip impact). `keyFormula.display` is display-only text, never evaluated.
 - Known gaps: JSON Schema export pending; no `migrate()` yet (nothing to migrate pre-0.2).
 
 ## Registry (`packages/registry`)

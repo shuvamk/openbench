@@ -14,7 +14,9 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
 ## Design principles
 
 1. **JSON-serializable, versioned.** Every top-level object carries
-   `"irVersion": "0.1.0"`. Breaking changes bump minor until 1.0, then major.
+   `"irVersion"` (current: `"0.1.1"`). Breaking changes bump minor until 1.0,
+   then major; additive optional fields are patch-level and remain compatible
+   (a `0.1.0` document still validates against `0.1.1`).
 2. **Engine-native formats are translation targets, not the source of
    truth.** KiCad `.kicad_sch`, SPICE netlists, Renode `.repl`/`.resc`,
    and PlatformIO `platformio.ini` are all *generated from* or *imported
@@ -58,6 +60,12 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
     // device names (e.g. "D{ref}R") to keep multi-device instances unique.
   },
   "footprint": { "kicadRef": "Resistor_SMD:R_0603_1608Metric" },
+  // optional: "education": { ... } — read-only teaching metadata (additive, issue
+  // #78). Every sub-field optional: "summary" (one line), "gotchas": string[],
+  // "keyFormula": { "display", "variables": Record<string,string> } (display-only
+  // TEXT, never parsed), "paramNotes": Record<string,string>, and "interactiveHint":
+  // { "targetParam", "targetComponentId"?, "observe", "prompt" } — the live "try it"
+  // knob. Ignored by every adapter (KiCad/ngspice/firmware). See the changelog entry.
   "provenance": { "source": "registry", "addedBy": "registry-curator", "at": "<iso8601>" }
 }
 
@@ -309,3 +317,69 @@ and the code must never drift: the `ir-schema-guard` skill and the package's
   (error path `layout.probes.<i>.netId`), `x`/`y` place the on-canvas marker,
   `color` optionally pins a trace color. Adapters ignore `layout` on
   import/export, so this is round-trip-neutral for every engine.
+- **2026-07-05** — issue #78 (epic #76, gated by spike #77), one ADDITIVE field
+  with the first explicit **patch-level `irVersion` bump `0.1.0 → 0.1.1`**
+  (ir-schema-guard: optional additions are non-breaking; prior `0.1.0` documents
+  still validate because pre-1.0 patch differences are compatible):
+  `component.education?` — read-only teaching metadata driving the editor "Learn"
+  panel (#80) and the live "try it" knob (#81). Every sub-field is optional so
+  partial authoring is valid and existing components stay valid untouched:
+  - `summary?: string` — one-line plain-language description.
+  - `gotchas?: string[]` — beginner traps, each a standalone sentence.
+  - `keyFormula?: { display: string; variables: Record<string,string> }` —
+    display-only formula + variable glossary. `display` is teaching TEXT, **never
+    parsed or evaluated** (contrast `simModel.derivedParams`, which is); do not
+    wire it into the compiler.
+  - `paramNotes?: Record<string,string>` — per-parameter notes keyed by the
+    component's own parameter names. Unknown keys are permitted (validator stays
+    permissive; registry typo-checking lives in #79's content tests).
+  - `interactiveHint?: { targetParam: string; targetComponentId?: string;
+    observe: string; prompt: string }` — the single live knob. `targetParam`
+    (required) is the parameter to expose as a slider; `observe` (required) the
+    derived series to highlight; `targetComponentId?` optionally addresses a
+    **series part** (the LED case, whose knob lives on the resistor) — omit it to
+    wiggle the subject's own param; `prompt` frames the experiment.
+  Adapters (KiCad/ngspice/firmware) ignore `education` entirely — it is human
+  metadata, so this is round-trip-neutral for every engine. Full rationale and
+  hand-authored LED + resistor content: `.context/findings/spike-77-education-ir.md`
+  and ADR-0023.
+
+  ```jsonc
+  // === Additive — component with an education block (issue #78) ===
+  {
+    "irVersion": "0.1.1",
+    "kind": "component",
+    "id": "cmp_led_generic",
+    "name": "LED",
+    "category": "active",
+    "pins": [
+      { "id": "a", "name": "A", "electricalType": "passive" },
+      { "id": "k", "name": "K", "electricalType": "passive" }
+    ],
+    "parameters": [],
+    "simModel": { "engine": "ngspice", "template": "D{ref} {a} {k} DLED", "modelCard": ".model DLED D(IS=1e-14 N=2)" },
+    "education": {
+      "summary": "A one-way valve for current that glows when current flows the right way.",
+      "gotchas": [
+        "Polarity matters: current only flows anode (long leg, +) → cathode (short leg, −).",
+        "An LED barely resists current on its own — always add a series resistor or it burns out."
+      ],
+      "keyFormula": {
+        "display": "I = (V_supply − V_f) / R",
+        "variables": {
+          "I": "current through the LED; ~10–15 mA is a bright, safe indicator",
+          "V_f": "forward voltage, set by the LED (~1.4–2 V), not by you",
+          "R": "the series resistor — this is your brightness knob"
+        }
+      },
+      "paramNotes": {},
+      "interactiveHint": {
+        "targetParam": "resistance",
+        "targetComponentId": "cmp_resistor_generic",
+        "observe": "brightness",
+        "prompt": "Drag the series resistor down and watch the LED brighten — too low and the current gets dangerous."
+      }
+    },
+    "provenance": { "source": "registry", "addedBy": "registry-curator", "at": "<iso8601>" }
+  }
+  ```

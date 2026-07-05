@@ -51,6 +51,56 @@ const simModelSchema = z.object({
   derivedParams: z.record(z.string()).optional(),
 });
 
+/**
+ * Optional read-only teaching metadata for a component (additive, issue #78;
+ * shape validated by hand against LED + resistor in the spike #77 finding,
+ * .context/findings/spike-77-education-ir.md). It drives the editor's "Learn"
+ * panel (#80) and the live "try it" knob (#81); adapters (KiCad/ngspice/
+ * firmware) ignore it entirely, so it never affects a round-trip contract.
+ *
+ * Every sub-field is optional so partial authoring is valid and existing
+ * components (which omit the whole block) stay valid — hence a PATCH bump.
+ */
+const educationSchema = z.object({
+  /** One-line plain-language "what is this / what does it do". */
+  summary: z.string().min(1).optional(),
+  /** Beginner traps, each a short standalone sentence. */
+  gotchas: z.array(z.string().min(1)).optional(),
+  /**
+   * Display-only formula plus a glossary of its variables. `display` is
+   * teaching TEXT — it is NEVER parsed or evaluated (contrast
+   * simModel.derivedParams, which is). Do not wire it into the compiler.
+   */
+  keyFormula: z
+    .object({
+      display: z.string().min(1),
+      variables: z.record(z.string()),
+    })
+    .optional(),
+  /**
+   * Per-parameter notes, keyed by this component's own declared parameter
+   * names. Unknown keys are permitted here (registry typo-checking lives in the
+   * registry content tests, #79) — the validator stays permissive so the field
+   * is purely additive.
+   */
+  paramNotes: z.record(z.string()).optional(),
+  /**
+   * The single "try it" knob. `targetParam` names the parameter to expose as a
+   * slider and `observe` the derived series to highlight; both are required
+   * when a hint is present. `targetComponentId` is optional — omit it to wiggle
+   * the subject's own param, or set it to address a series part (the LED case,
+   * whose knob lives on the resistor). `prompt` frames the experiment.
+   */
+  interactiveHint: z
+    .object({
+      targetParam: z.string().min(1),
+      targetComponentId: z.string().min(1).optional(),
+      observe: z.string().min(1),
+      prompt: z.string().min(1),
+    })
+    .optional(),
+});
+
 /** One lexical token of a derivedParams expression. */
 const EXPRESSION_TOKEN =
   /(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-z_][A-Za-z0-9_]*|[+\-*/()]|\s+/y;
@@ -94,12 +144,15 @@ export const componentObjectSchema = z.object({
   parameters: z.array(parameterSchema).default([]),
   simModel: simModelSchema.optional(),
   footprint: z.object({ kicadRef: z.string().min(1) }).optional(),
+  /** Optional read-only teaching metadata (additive, issue #78). */
+  education: educationSchema.optional(),
   provenance: provenanceSchema,
 });
 
 export type Component = z.infer<typeof componentObjectSchema>;
 export type Pin = z.infer<typeof pinSchema>;
 export type ComponentParameter = z.infer<typeof parameterSchema>;
+export type Education = z.infer<typeof educationSchema>;
 
 export function refineComponent(component: Component, ctx: z.RefinementCtx): void {
   const seen = new Set<string>();
