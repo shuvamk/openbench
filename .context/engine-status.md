@@ -164,6 +164,15 @@
   The Run button shows the live phase and SimPanel renders a warning badge whenever
   results came from the mock backend — so synthetic waveforms are never mistaken for a
   real ngspice run.
+- Fallback reason + classification (issue 143): the fallback backend now captures the
+  primary's failure message (`lastFallbackReason`), and `runProjectSimulation` returns
+  `fallbackReason` + `fallbackKind` (`engine-unavailable` | `circuit`), also mirrored in
+  the sim store. `classifyFallbackReason` (apps/web/lib/sim/run.ts) buckets engine-plumbing
+  failures (module load / unexpected module-or-result shape) as `engine-unavailable` and
+  everything else (ngspice run error, missing probe, missing time/frequency vector) as
+  `circuit`. The banner shows the real cause and tells the user whether the engine broke
+  or their circuit needs fixing (→ Console tab). Durable fix is the native ngspice backend
+  (issue #118).
 
 ## SPICE netlist adapter (`packages/mcp-sim-ngspice/spice-netlist.ts`)
 
