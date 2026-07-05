@@ -99,6 +99,12 @@ export interface EditorState {
   /** Hydrate a read-only bundle decoded from a share/embed payload (issue #40). */
   loadShared(bundle: ProjectBundle): void;
   place(component: Component, position: Point): void;
+  /**
+   * Commit an externally-computed schematic (e.g. teaching-mode "do it for me",
+   * issue #153) through the history-aware path: undo snapshot recorded, dirty
+   * flag set, autosave armed. A no-op if identical or the bundle is read-only.
+   */
+  applySchematic(schematic: SchematicDoc): void;
   move(instanceId: string, position: Point): void;
   rotateSelection(): void;
   connect(a: NetConnection, b: NetConnection): void;
@@ -251,6 +257,11 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const placed = placeInstance(bundle.schematic, component, position);
       set({ selection: [placed.instanceId], tool: "select", placingComponentId: undefined });
       commitSchematic(placed.schematic);
+    },
+
+    applySchematic(schematic) {
+      if (!get().bundle) return;
+      commitSchematic(schematic);
     },
 
     move(instanceId, position) {

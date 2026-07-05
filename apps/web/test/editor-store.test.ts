@@ -109,6 +109,43 @@ describe("editor store", () => {
     expect(useEditorStore.getState().dirty).toBe(false);
   });
 
+  it("applySchematic commits an externally-computed schematic, recording history", async () => {
+    const { store } = makeFakeStore();
+    await useEditorStore.getState().loadProject("proj_rc_lowpass");
+    const before = useEditorStore.getState().bundle!.schematic;
+    const pastLen = useEditorStore.getState().past.length;
+
+    const next: Schematic = {
+      ...before,
+      instances: [...before.instances, { instanceId: "R99", componentId: "cmp_resistor_generic" }],
+    };
+    useEditorStore.getState().applySchematic(next);
+
+    expect(useEditorStore.getState().bundle!.schematic).toBe(next);
+    expect(useEditorStore.getState().dirty).toBe(true);
+    // The pre-mutation schematic went onto the undo stack.
+    expect(useEditorStore.getState().past.length).toBe(pastLen + 1);
+    expect(useEditorStore.getState().past.at(-1)).toBe(before);
+    // Undo restores it.
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().bundle!.schematic).toBe(before);
+  });
+
+  it("applySchematic is a no-op on the identical schematic and respects read-only", async () => {
+    makeFakeStore();
+    await useEditorStore.getState().loadProject("proj_rc_lowpass");
+    const before = useEditorStore.getState().bundle!.schematic;
+    useEditorStore.getState().applySchematic(before);
+    expect(useEditorStore.getState().dirty).toBe(false);
+    expect(useEditorStore.getState().past.length).toBe(0);
+
+    // Read-only bundles ignore the mutation entirely.
+    useEditorStore.setState({ readOnly: true });
+    const changed: Schematic = { ...before, instances: [] };
+    useEditorStore.getState().applySchematic(changed);
+    expect(useEditorStore.getState().bundle!.schematic).toBe(before);
+  });
+
   it("loadProject passes the demo alias straight through to the project store", async () => {
     const { store } = makeFakeStore();
     await useEditorStore.getState().loadProject("demo");

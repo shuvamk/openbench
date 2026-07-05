@@ -356,10 +356,9 @@ Dependency order (each depends on the one above). All four filed by this spike:
    side panel that subscribes to the editor IR store, debounces, re-evaluates every step
    via `evaluateStep`, and drives a linear stepper — per-clause checklist, greens +
    advances the active step on pass, keeps it red with its hint on a wrong value, and
-   surfaces ERC issues as inline non-blocking warnings (§3.4). The `allowAutoPlace`
-   "do it for me" affordance is **deferred to a follow-up** — it needs a minimal-
-   satisfying-mutation engine derived from `targetBundle`, out of scope for the
-   validation panel. Loading a lesson from a share link is #92's codec work.
+   surfaces ERC issues as inline non-blocking warnings (§3.4). Loading a lesson from a
+   share link is #92's codec work. The `allowAutoPlace` "do it for me" affordance
+   **landed in #153** (below).
 4. **[#92] lesson share + AI seam** (p2) — **DONE (#92).** Share codec:
    `apps/web/lib/share.ts` was generalized to `encodeJson`/`decodeJson` (one gzip +
    URL-safe-base64 implementation, one `SHARE_URL_LIMIT` budget); `apps/web/lib/lesson/
@@ -372,3 +371,14 @@ Dependency order (each depends on the one above). All four filed by this spike:
    implementation slots in behind the copilot provider **when #43 lands** (still open);
    loading a lesson link into the editor UI (route + hydrate) is a thin follow-up on
    this codec. **Depends on:** #89, #40 (closed), #43 (AI, open — mock-only until then).
+5. **[#153] "do it for me" auto-place** (p2) — **DONE (#153).** The `allowAutoPlace`
+   affordance from §7. `apps/web/lib/lesson/autoplace.ts` (`autoPlaceStep`, pure) binds
+   the step's predicate roles to `targetBundle` instances (component + `where`, across
+   the whole lesson so cross-step roles resolve), maps each onto the live schematic —
+   reusing an equivalent instance the student already placed or importing a target clone
+   — and wires the `connected` clauses so the mapped pins share a net. The result grafts
+   the target's satisfying substructure onto the student's build, so `evaluateStep`
+   passes and the runner advances. `StudentRunnerPanel` renders a `[data-lesson-autoplace]`
+   "✨ Do it for me" button only on an unsatisfied `allowAutoPlace` step, committing the
+   mutation through a new history-aware `useEditorStore.applySchematic` action (undoable).
+   **Depends on:** #91 (closed). Mounting the panel in the editor chrome is #163.
