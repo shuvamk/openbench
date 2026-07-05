@@ -11,6 +11,7 @@ import {
   resetEditorState,
   useEditorStore,
 } from "../lib/editor/store";
+import { useLiveStore } from "../lib/live/store";
 import { ZoomControls } from "../components/editor/ZoomControls";
 import { SchematicCanvas } from "../components/editor/SchematicCanvas";
 
@@ -182,5 +183,56 @@ describe("SchematicCanvas — Figma-style drag-pan", () => {
     // …and shift-drag must not pan.
     expect(useEditorStore.getState().pan).toEqual(panBefore);
     fireEvent(svg, pointer("pointerup", { button: 0, shiftKey: true, clientX: 700, clientY: 500 }));
+  });
+});
+
+describe("SchematicCanvas — space/live drag-pan is tool-agnostic (issue 135)", () => {
+  beforeEach(seedStore);
+  afterEach(() => {
+    // Release space and reset live mode so state never leaks between tests.
+    fireEvent.keyUp(window, { key: " " });
+    useLiveStore.setState({ mode: "design" });
+    cleanup();
+  });
+
+  it("space-hold + left-drag on empty background pans even with a non-select tool active", () => {
+    useEditorStore.setState({ tool: "wire" });
+    const { container } = render(<SchematicCanvas />);
+    const svg = container.querySelector('[data-testid="schematic-canvas"]')!;
+    const panBefore = { ...useEditorStore.getState().pan };
+    // Space is held via a real window keydown, matching the component's listener.
+    fireEvent.keyDown(window, { key: " " });
+    fireEvent(svg, pointer("pointerdown", { button: 0, clientX: 200, clientY: 200 }));
+    fireEvent(svg, pointer("pointermove", { button: 0, clientX: 260, clientY: 240 }));
+    const panAfter = useEditorStore.getState().pan;
+    expect(panAfter.x).toBe(panBefore.x + 60);
+    expect(panAfter.y).toBe(panBefore.y + 40);
+    fireEvent(svg, pointer("pointerup", { button: 0, clientX: 260, clientY: 240 }));
+  });
+
+  it("live-mode background drag pans even with a non-select tool active", () => {
+    useEditorStore.setState({ tool: "place" });
+    useLiveStore.setState({ mode: "live" });
+    const { container } = render(<SchematicCanvas />);
+    const svg = container.querySelector('[data-testid="schematic-canvas"]')!;
+    const panBefore = { ...useEditorStore.getState().pan };
+    fireEvent(svg, pointer("pointerdown", { button: 0, clientX: 200, clientY: 200 }));
+    fireEvent(svg, pointer("pointermove", { button: 0, clientX: 250, clientY: 210 }));
+    const panAfter = useEditorStore.getState().pan;
+    expect(panAfter.x).toBe(panBefore.x + 50);
+    expect(panAfter.y).toBe(panBefore.y + 10);
+    fireEvent(svg, pointer("pointerup", { button: 0, clientX: 250, clientY: 210 }));
+  });
+
+  it("plain (no-space, no-shift) left-drag pan STILL requires the select tool", () => {
+    useEditorStore.setState({ tool: "wire" });
+    const { container } = render(<SchematicCanvas />);
+    const svg = container.querySelector('[data-testid="schematic-canvas"]')!;
+    const panBefore = { ...useEditorStore.getState().pan };
+    fireEvent(svg, pointer("pointerdown", { button: 0, clientX: 200, clientY: 200 }));
+    fireEvent(svg, pointer("pointermove", { button: 0, clientX: 260, clientY: 240 }));
+    // Non-select tool + no chord must NOT pan.
+    expect(useEditorStore.getState().pan).toEqual(panBefore);
+    fireEvent(svg, pointer("pointerup", { button: 0, clientX: 260, clientY: 240 }));
   });
 });
