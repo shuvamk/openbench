@@ -33,3 +33,14 @@ ambiguity is discovered; agents drift without this.
 - **Red commit / green commit** — the failing-test commit (`test:`) and the
   implementation commit (`feat:/fix:`) of one TDD cycle.
 - **The brain** — the `.context/` directory. Read before acting, update after acting.
+- **Teaching mode** — a guided walkthrough feature: a teacher authors a lesson, a student
+  builds the circuit step-by-step with live validation. Core works with zero AI/backend.
+- **Lesson** — a *product document* (not an IR kind; `les_` prefix) wrapping a
+  `targetBundle: ProjectBundle` + ordered `steps`. Lives in `packages/lesson`. See
+  `design/teaching-mode.md`, ADR-0022.
+- **Step** — one lesson instruction with an `expect: SchematicPredicate` pass condition, an
+  optional static `hint`, and `allowAutoPlace?`.
+- **SchematicPredicate** — the step-validation primitive: an existential **subset match**
+  over the student's live schematic IR (an `all`/`any`/`not` tree of `component` and
+  `connected` clauses over role variables). Monotonic — correct progress never turns a
+  passing step red. ERC violations feed hints, never gate the pass.

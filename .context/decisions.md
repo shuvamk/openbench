@@ -382,3 +382,52 @@ future logic (flip-flops, counters) as node-0-referenced behavioral subckts. The
 all four as `ic`-kind boxes (`U` ref prefix for the gates, `DS` for the display). Issue #44's
 NE555 astable golden-test criterion moves to the follow-up issue; #44 otherwise closes with
 op-amp + sensor (already shipped), 74xx logic, and 7-seg delivered. Follows ADR-0020.
+
+## ADR-0022 — Teaching mode: lesson doc lives in `packages/lesson`; subset-match predicates (issue #49, 2026-07-05)
+
+**Decision:** Teaching mode (author a guided walkthrough, share a link, students build
+step-by-step with live validation) is settled by this spike. A **lesson is a product
+document, not an IR kind**: it lives in a new pure package `packages/lesson` (depends only
+on `@openbench/ir-schema` types + `@openbench/erc`), gets a `les_` id prefix that is
+deliberately *not* added to the IR discriminated union, and wraps a `targetBundle:
+ProjectBundle` plus `steps: Step[]`. `Step = { id, instruction(md), expect:
+SchematicPredicate, hint?, allowAutoPlace? }`. The validation primitive is a
+**`SchematicPredicate` — an existential subset match** over the student's live schematic
+IR: an `all`/`any`/`not` tree of `component` clauses (an instance of componentId X bound
+to a role variable, with numeric/`approx`±% parameter constraints) and `connected` clauses
+(a set of role-pin refs share one net; the net may have more connections). Matching is
+existential + monotonic (adding correct structure never turns a passing step red);
+`evaluateStep` backtracks over role→instance bindings, injects `resolveComponent` (never
+throws), and returns per-clause booleans so partial matches drive progress + hints. ERC
+(#35) violations touching a step's bound instances/nets surface as **warnings that never
+gate advancement** — a step can pass structurally while ERC still nudges. Authoring is
+**by recording** (harvest #18 mutation batches → structural predicates, hand-editable),
+which is the *same* derivation the AI would do, so it works with zero AI. Distribution
+**reuses the #40 stateless share codec** (a `.openbench-lesson.json` / URL fragment, no
+backend, ADR-0008). AI is an **optional enhancement behind a `LessonAI` interface whose
+default is a deterministic `MockLessonAI`** (mirrors #43's key-optional seam): the whole
+feature runs end-to-end without an API key.
+
+**Rationale:** The IR is the contract *between engines*; a lesson never crosses an engine
+boundary and carries pedagogy fields (instructions, hints, difficulty) no engine consumes —
+putting it in the IR would force an `irVersion` bump for pedagogy edits and pollute the
+canonical schema. A *package* (not apps/web-only) keeps predicate evaluation a pure,
+unit-tested function shared by the author UI, the student runner, and any future headless
+MCP tutor — exactly the decoupling `packages/erc` already models via injected component
+resolution. Existential subset matching is the crux: a student names instances freely and
+builds incrementally, so the predicate must match *some* substructure by role, ignore the
+rest, and stay green as more correct wiring lands. Recording-first authoring guarantees the
+predicate is satisfiable by the very mutations that built the reference circuit (no drift
+between "what the lesson asks" and "what the target is"). Reusing #40 and the #43 mock seam
+means teaching mode adds no backend and no hard AI dependency.
+
+**Consequences:** Introduces the `les_` product-doc prefix (documented in the design doc +
+glossary, not in ir-schema). `ProjectBundle` (today the pinned dashboard↔editor contract in
+`apps/web/lib/project-store/types.ts`) is promoted to a shared type both `apps/web` and
+`packages/lesson` import — a move, not a redesign. Full design + a worked 3-step "7-Segment
+LED Display" example (using the real `cmp_7segment_display`, `cmp_vsource_dc`,
+`cmp_resistor_generic`, `cmp_ground` ids/pins) is in
+[.context/design/teaching-mode.md](design/teaching-mode.md). Four ordered follow-up issues
+are unblocked: (1) lesson core (types + `evaluateStep`, dep #35/#44 — both closed), (2)
+authoring-by-recording (dep #18 — closed), (3) student runner panel (dep #40), (4) lesson
+share + AI seam (dep #40, #43). Follows ADR-0021.
