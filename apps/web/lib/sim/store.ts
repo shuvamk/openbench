@@ -7,6 +7,7 @@ import {
   DEFAULT_STEP,
   runProjectSimulation,
   type ConsoleEntry,
+  type FallbackKind,
 } from "./run";
 
 export type SimStatus = "idle" | "queued" | "running" | "completed" | "failed";
@@ -25,6 +26,10 @@ export interface SimState {
   backendUsed?: string;
   /** True when the latest run silently fell back to the mock backend. */
   usedMockFallback: boolean;
+  /** The primary backend's failure message when the latest run fell back (#143). */
+  fallbackReason?: string;
+  /** Whether that fallback was an engine problem or a circuit problem (#143). */
+  fallbackKind?: FallbackKind;
   duration: string;
   step: string;
   /** Probed netIds; null = adapter default (every non-ground net). */
@@ -49,6 +54,8 @@ const initialState = {
   phase: "idle" as SimPhase,
   backendUsed: undefined as string | undefined,
   usedMockFallback: false,
+  fallbackReason: undefined as string | undefined,
+  fallbackKind: undefined as FallbackKind | undefined,
   duration: DEFAULT_DURATION,
   step: DEFAULT_STEP,
   probes: null as string[] | null,
@@ -95,6 +102,8 @@ export const useSimStore = create<SimState>((set, get) => ({
       phase: "idle",
       backendUsed: undefined,
       usedMockFallback: false,
+      fallbackReason: undefined,
+      fallbackKind: undefined,
       consoleEntries: [],
       warnings: [],
       deck: undefined,
@@ -132,6 +141,8 @@ export const useSimStore = create<SimState>((set, get) => ({
       phase: succeeded ? "done" : "failed",
       backendUsed: result.backendUsed,
       usedMockFallback: result.usedMockFallback,
+      fallbackReason: result.fallbackReason,
+      fallbackKind: result.fallbackKind,
       run: result.run,
       deck: result.deck,
       warnings: result.warnings,

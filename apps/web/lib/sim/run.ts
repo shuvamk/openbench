@@ -63,6 +63,39 @@ export interface RunProjectSimulationResult {
    * mistaken for a real simulation (issue #130).
    */
   usedMockFallback: boolean;
+  /**
+   * When `usedMockFallback` is true, the primary backend's underlying failure
+   * message (e.g. "eecircuit-engine failed to load: …" or 'probe "x" missing
+   * …') so the banner can show the real cause instead of a generic string
+   * (issue #143). Absent when no fallback happened.
+   */
+  fallbackReason?: string;
+  /**
+   * Classification of `fallbackReason` so the banner can tell the user whether
+   * the engine is broken (not their fault) or their circuit needs fixing
+   * (issue #143). Absent when no fallback happened.
+   */
+  fallbackKind?: FallbackKind;
+}
+
+/**
+ * Whether a fallback was caused by the engine being unavailable (WASM failed
+ * to load / returned an unusable shape — not the user's fault) or by the
+ * user's circuit (bad probe, missing output vector, non-convergence).
+ */
+export type FallbackKind = "engine-unavailable" | "circuit";
+
+/**
+ * Classify a primary-backend failure message into engine-unavailable vs
+ * circuit-fixable. Engine-plumbing failures (module load, unexpected module
+ * or result shape) are the engine's fault; everything else — an ngspice run
+ * error, a missing probe, a missing time/frequency vector — points back at
+ * the circuit the user drew.
+ */
+export function classifyFallbackReason(reason: string): FallbackKind {
+  return /failed to load|does not expose|unexpected .*shape|returned an unexpected/i.test(reason)
+    ? "engine-unavailable"
+    : "circuit";
 }
 
 /**
@@ -74,6 +107,11 @@ export interface FallbackSimBackend extends SimBackend {
   readonly lastUsedBackend: string | undefined;
   /** True when the last run fell through from primary to fallback. */
   readonly lastUsedFallback: boolean;
+  /**
+   * The primary backend's failure message from the last run, when it fell
+   * back (undefined if the primary succeeded or has not run).
+   */
+  readonly lastFallbackReason: string | undefined;
 }
 
 function isFallbackBackend(backend: SimBackend): backend is FallbackSimBackend {
@@ -101,6 +139,7 @@ export function createFallbackBackend(
 ): FallbackSimBackend {
   let lastUsedBackend: string | undefined;
   let lastUsedFallback = false;
+  let lastFallbackReason: string | undefined;
   return {
     name: `${primary.name}-with-${fallback.name}-fallback`,
     get lastUsedBackend() {
@@ -109,11 +148,15 @@ export function createFallbackBackend(
     get lastUsedFallback() {
       return lastUsedFallback;
     },
+    get lastFallbackReason() {
+      return lastFallbackReason;
+    },
     async run(deck, probes) {
       try {
         const result = await primary.run(deck, probes);
         lastUsedBackend = primary.name;
         lastUsedFallback = false;
+        lastFallbackReason = undefined;
         return result;
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
@@ -124,6 +167,7 @@ export function createFallbackBackend(
         const result = await fallback.run(deck, probes);
         lastUsedBackend = fallback.name;
         lastUsedFallback = true;
+        lastFallbackReason = message;
         return result;
       }
     },
@@ -229,15 +273,28 @@ export async function runProjectSimulation(
   const backendUsed = isFallbackBackend(backend)
     ? (backend.lastUsedBackend ?? backend.name)
     : backend.name;
+  const fallbackReason =
+    usedMockFallback && isFallbackBackend(backend) ? backend.lastFallbackReason : undefined;
+  const fallbackKind =
+    fallbackReason !== undefined ? classifyFallbackReason(fallbackReason) : undefined;
 
   if (usedMockFallback) {
     log({
       level: "warn",
-      text: `results were produced by the "${backendUsed}" fallback backend — not the real WASM ngspice engine`,
+      text: `results were produced by the "${backendUsed}" fallback backend — not the real WASM ngspice engine${fallbackReason !== undefined ? ` (cause: ${fallbackReason})` : ""}`,
     });
   }
 
-  return { run, deck, warnings, consoleEntries, backendUsed, usedMockFallback };
+  return {
+    run,
+    deck,
+    warnings,
+    consoleEntries,
+    backendUsed,
+    usedMockFallback,
+    fallbackReason,
+    fallbackKind,
+  };
 }
 
 /** Decode an inline data:text/plain;base64 log for display (best effort). */

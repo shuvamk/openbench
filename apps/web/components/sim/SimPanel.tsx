@@ -11,7 +11,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/Stack";
 import { activeProbeNetIds, useEditorStore } from "../../lib/editor/store";
-import { defaultProbeNetIds } from "../../lib/sim/run";
+import { defaultProbeNetIds, type FallbackKind } from "../../lib/sim/run";
 import { useSimStore } from "../../lib/sim/store";
 import { WaveformViewer, type WaveformTrace } from "./WaveformViewer";
 
@@ -23,6 +23,38 @@ function timeInputStatus(value: string): { type: "error"; message: string } | un
     : { type: "error", message: "Use a SPICE time value like 10ms or 1us" };
 }
 
+/**
+ * Copy for the mock-fallback banner (issue 143). Surfaces the primary
+ * backend's real failure reason and distinguishes an engine problem (WASM
+ * ngspice could not start — not the user's fault) from a circuit problem
+ * (bad probe / floating node / non-convergence — the user can fix it).
+ */
+function fallbackBannerContent(
+  kind: FallbackKind | undefined,
+  reason: string | undefined,
+  backendUsed: string | undefined,
+): { title: string; description: string; kind: FallbackKind } {
+  const backend = backendUsed ?? "mock";
+  // Default to engine-unavailable when the reason/kind is unknown: a run that
+  // fell back with no captured cause is most likely an engine plumbing issue.
+  const resolvedKind: FallbackKind = kind ?? "engine-unavailable";
+  const because = reason ? ` (${reason})` : "";
+  const placeholder = `These waveforms came from the deterministic ${backend} backend — placeholder data, not a real simulation.`;
+
+  if (resolvedKind === "circuit") {
+    return {
+      kind: resolvedKind,
+      title: "Circuit could not be simulated — results are not real",
+      description: `ngspice could not simulate this circuit${because}. This is a problem with the circuit, not the engine — check the Console tab and fix it (e.g. a floating node, a missing probe net, or non-convergence). ${placeholder}`,
+    };
+  }
+  return {
+    kind: resolvedKind,
+    title: "Simulation engine unavailable — results are not real",
+    description: `The WASM ngspice engine could not run${because}. This is an engine problem, not your circuit. ${placeholder}`,
+  };
+}
+
 /** Simulation tab: transient controls + probe selection + the waveform plot. */
 function SimulationTab() {
   const bundle = useEditorStore((s) => s.bundle);
@@ -31,6 +63,8 @@ function SimulationTab() {
   const probes = useSimStore((s) => s.probes);
   const status = useSimStore((s) => s.status);
   const usedMockFallback = useSimStore((s) => s.usedMockFallback);
+  const fallbackReason = useSimStore((s) => s.fallbackReason);
+  const fallbackKind = useSimStore((s) => s.fallbackKind);
   const backendUsed = useSimStore((s) => s.backendUsed);
   const run = useSimStore((s) => s.run);
   const hiddenTraceIds = useSimStore((s) => s.hiddenTraceIds);
@@ -132,15 +166,19 @@ function SimulationTab() {
           >
             ▶ Run
           </Button>
-          {usedMockFallback && (
-            <div data-testid="sim-mock-fallback-badge">
-              <Banner
-                status="warning"
-                title="Mock backend — results are not real"
-                description={`The WASM ngspice engine failed to run, so these waveforms came from the deterministic ${backendUsed ?? "mock"} backend. Treat them as placeholder data, not a real simulation.`}
-              />
-            </div>
-          )}
+          {usedMockFallback &&
+            (() => {
+              const { title, description, kind } = fallbackBannerContent(
+                fallbackKind,
+                fallbackReason,
+                backendUsed,
+              );
+              return (
+                <div data-testid="sim-mock-fallback-badge" data-fallback-kind={kind}>
+                  <Banner status="warning" title={title} description={description} />
+                </div>
+              );
+            })()}
         </VStack>
       </div>
       <WaveformViewer
