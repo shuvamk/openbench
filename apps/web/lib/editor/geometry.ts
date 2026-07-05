@@ -343,13 +343,21 @@ export function fitToContent(components: ComponentBounds[], viewport: Viewport):
 }
 
 /**
- * Junction dots (issue #129): given one net's wire segments (each an orthogonal
- * polyline of >=2 points), return the coordinates where three or more segment
- * endpoints coincide. Only true endpoints (first + last point of a segment)
- * count — intermediate bend vertices never form a junction. A coordinate shared
- * by exactly two endpoints is a routed corner, not a junction, so it is
- * excluded. Because the input is a single net's segments, crossovers between
- * different nets can never produce a junction (they are evaluated separately).
+ * Junction dots (issue #129): given ONE net's wire segments (each an orthogonal
+ * polyline of >=2 points), return the coordinates that form a genuine multi-way
+ * join. Only true endpoints (first + last point of a segment) count —
+ * intermediate bend vertices never form a junction.
+ *
+ * Wires route as a STAR (netWireSegments): an N-pin net emits N-1 segments that
+ * all share the anchor (first pin) as an endpoint. So the anchor's coincident-
+ * endpoint count is N-1, i.e. a genuine 3-pin tee gives it degree 2. A dot is
+ * therefore warranted wherever >= 2 segment endpoints coincide within the net
+ * (the anchor pin is itself a connection, so degree-2 means three pins meet):
+ *   - 2-pin net -> single segment, both endpoints appear once -> no dot.
+ *   - >=3-pin net -> the anchor appears in every arm -> exactly one dot there.
+ * A leaf pin appears once, so leaves never dot. Because the input is a single
+ * net's segments, crossovers between different nets can never produce a junction
+ * (nets are evaluated separately).
  */
 export function computeJunctions(segments: Point[][]): Point[] {
   const counts = new Map<string, { point: Point; count: number }>();
@@ -369,7 +377,7 @@ export function computeJunctions(segments: Point[][]): Point[] {
   }
   const junctions: Point[] = [];
   for (const { point, count } of counts.values()) {
-    if (count >= 3) junctions.push(point);
+    if (count >= 2) junctions.push(point);
   }
   return junctions;
 }
