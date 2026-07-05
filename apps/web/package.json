@@ -12,6 +12,7 @@
     "@astryxdesign/core": "^0.1.2",
     "@astryxdesign/theme-neutral": "^0.1.2",
     "@openbench/ir-schema": "*",
+    "@openbench/schematic-ops": "*",
     "next": "^16.2.10",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
