@@ -26,9 +26,35 @@ other directly — every hand-off is an IR document.
         packages/ir-schema  packages/     packages/      packages/        packages/
         (canonical IR:      netlist-      mcp-kicad      mcp-sim-         mcp-firmware-
          zod schemas,       compiler      (KiCad         ngspice          platformio
-         validation,        (schematic→   .kicad_sch     (netlist →       (PlatformIO
          versioning)        netlist IR)   import/export) sim run)         build/flash)
 ```
+
+> **This diagram is the state as of 2026-07-04.** Per **ADR-0024** (2026-07-05), OpenBench
+> is pivoting from browser/Vercel-hosted to a downloadable desktop app (Electron shell +
+> a local backend process, engine toolchains bundled in the installer). That pivot has
+> not landed yet — the diagram above and the rest of this document still describe the
+> current, running system. See **"Desktop pivot (planned)"** below for the target
+> architecture and what changes.
+
+## Desktop pivot (planned — ADR-0024, not yet built)
+
+**Target state:** an Electron shell wraps `apps/web`'s UI and starts a local Node
+backend, `apps/desktop-backend` (new package), on install. That backend replaces
+`apps/web/app/api/*` route handlers and runs the engines **natively** instead of
+WASM/mock — real `ngspice` CLI, real `kicad-cli`, real PlatformIO (`pio run`), real
+`qemu-system-xtensa` flashing. `electron-builder` produces a macOS DMG and a Windows
+NSIS installer, each bundling the engine toolchain binaries for that OS, so a fresh
+install works fully offline with no post-install setup. The Vercel-hosted browser
+deploy is retired as the primary distribution channel.
+
+This is a large, multi-issue effort tracked as a GitHub Epic (planned scaffold: Electron
+shell, `apps/desktop-backend`, per-OS engine binary bundling, native `SimBackend`/
+`FirmwareBackend` implementations feeding the existing pluggable seams in
+`mcp-sim-ngspice`/`mcp-firmware-platformio`, installer packaging + signing, and
+retiring/replacing the Vercel `deploy-sanity` check with an installer smoke-test).
+Until each piece lands, treat the rest of this document as describing the
+currently-running browser/Vercel architecture — update the relevant section (and this
+one) in the same PR as each landed piece, per the usual `.context/` discipline.
 
 ## Layers
 
@@ -150,7 +176,9 @@ Status of each: [engine-status.md](engine-status.md).
 
 - GitHub Actions: `test` (unit+integration), `reviewer-agent` (sole merge gate),
   `context-freshness`, nightly `issue-hygiene`, `deploy-sanity` after production deploys.
-- Vercel: production deploy on every merge to `main`; preview deploy per PR.
+- Vercel: production deploy on every merge to `main`; preview deploy per PR. Per
+  ADR-0024 this is slated for retirement once the desktop pivot lands — `deploy-sanity`
+  will be replaced by an installer smoke-test at that point, not before.
 - Work flows through GitHub issues per `.github/LABELS.md`; agent roles in
   [agent-roles.md](agent-roles.md).
 
@@ -167,5 +195,9 @@ Status of each: [engine-status.md](engine-status.md).
   simulation panel (run → waveforms → console). Remaining: browser verification of the
   WASM ngspice backend, MCP server wrappers, real pio/QEMU execution paths per
   [engine-status.md](engine-status.md).
+- **Phase 1.5 (desktop pivot, ADR-0024): planned, not started.** Electron shell,
+  `apps/desktop-backend`, native engine execution (real ngspice/kicad-cli/pio/qemu),
+  per-OS bundled installers (DMG, Windows NSIS). Supersedes the Vercel deploy as the
+  primary distribution target — see "Desktop pivot" above.
 - **Phase 2 (deferred):** multiplayer/CRDT collaboration, community registry service,
   more MCU families, PCB layout.

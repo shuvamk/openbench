@@ -472,3 +472,38 @@ for `interactiveHint` (own-param vs nearest-series-target; hide if unresolved). 
 panel default: present-but-collapsed, mirroring the `hasLiveVisual` contextual-nudge
 precedent (derive.ts:123). `paramNotes` unknown-key handling is a **soft warning** in
 `refineComponent`, not an error. Follows ADR-0022.
+
+## ADR-0024 — Desktop-only pivot: Electron shell + bundled local backend (2026-07-05)
+
+**Decision:** OpenBench moves from "browser-based, Vercel-hosted" to a downloadable
+desktop app: an Electron shell wrapping the existing `apps/web` UI, backed by a local
+Node server (`apps/desktop-backend`, new) that runs the engines natively instead of
+WASM/mock — real `ngspice` CLI, real `kicad-cli`, real PlatformIO (`pio`), and real
+`qemu-system-xtensa`. The installer (`electron-builder`) bundles the engine toolchain
+binaries per-OS (macOS DMG, Windows NSIS) so a fresh install works fully offline with
+no post-install setup step. The Vercel-hosted browser deploy is retired as the primary
+target; `apps/web` becomes a UI package consumed by the Electron shell rather than a
+standalone deployed app.
+**Rationale:** Requested directly by the project owner: the target user is a student
+who installs one file and everything works, including engine execution paths (native
+ngspice CLI, real `pio run`+QEMU flashing) that are structurally impossible on Vercel's
+serverless model and were already tracked as partial/stubbed for exactly that reason
+(see `engine-status.md`). Given the choice between maintaining both distribution
+channels or committing fully to desktop, the owner chose a full pivot over dual-target
+to avoid splitting engine-adapter effort across two execution environments (WASM/mock
+for web, native for desktop) indefinitely.
+**Consequences:** This reverses the "Browser-based... platform" mission framing and the
+non-goal-adjacent assumption in ADR-0005 (apps/api deferred because "single-user, no
+server DB, Vercel deploys one Next app trivially") — that rationale no longer holds
+once there's a local backend process running on the student's machine. `.context/architecture.md`
+and `CLAUDE.md` are updated in the same PR as this ADR. Follow-up work (filed as a
+GitHub Epic, see issue tracker): Electron shell scaffold, `apps/desktop-backend`
+(replaces `apps/web/app/api/*` route handlers), per-OS engine binary bundling, native
+backends for `mcp-sim-ngspice`/`mcp-kicad`/`mcp-firmware-platformio` (the existing
+`SimBackend`/`FirmwareBackend` seams already support pluggable backends — this adds a
+native one, it does not replace the seam), `electron-builder` packaging + code signing,
+and retiring/repurposing `deploy-sanity` (Vercel `production_url` check) since there is
+no longer a production URL to sanity-check — replaced by an installer smoke-test.
+Deferred to a later ADR: whether to keep a thin hosted "try it in your browser" demo
+(WASM/mock only, no native engines) — not decided here; out of scope for this pivot.
+Follows ADR-0023.
