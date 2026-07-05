@@ -137,6 +137,14 @@ Status of each: [engine-status.md](engine-status.md).
   (`apps/web/lib/project-store/`, IndexedDB with memory fallback, ADR-0008). The
   simulation panel compiles via netlist-compiler + registry resolver and consumes
   `simulationRun` IR (waveform-v1, inline samples).
+- Command palette (issue #38): `Cmd/Ctrl+K` opens an Astryx `CommandPalette`
+  (`components/editor/CommandPalette.tsx`) — the keyboard-first twin of the AI copilot.
+  The command list is a pure, injectable model (`apps/web/lib/editor/commands.ts`):
+  fixed actions (run sim, toggle Live, ERC check, undo/redo, import/export, open project)
+  plus one "Add <part>" command generated per `registryComponents` entry, so new registry
+  parts become keyboard-placeable automatically. Every command routes through the same
+  store actions the palette-less UI uses (e.g. add-component → `store.place`), so there is
+  no second mutation path.
 
 ### 5. Desktop shell — `apps/desktop`
 - Electron shell that wraps the `apps/web` UI, first slice of the desktop pivot

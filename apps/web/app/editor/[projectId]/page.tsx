@@ -2,6 +2,7 @@
 
 import React, { use, useEffect } from "react";
 import { Text } from "@astryxdesign/core/Text";
+import { CommandPalette } from "../../../components/editor/CommandPalette";
 import { EditorTopBar } from "../../../components/editor/EditorTopBar";
 import { Inspector } from "../../../components/editor/Inspector";
 import { Palette } from "../../../components/editor/Palette";
@@ -50,6 +51,7 @@ export default function EditorPage({
       }}
     >
       <EditorTopBar />
+      <CommandPalette />
       {loadError ? (
         <div style={{ padding: 24 }}>
           <Text type="body" color="secondary">
