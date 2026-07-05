@@ -55,6 +55,13 @@ Workflow (follow in order):
      under ${WORKTREE_DIR}/<slug>/, never under ${REPO_ROOT}/<file> directly.
    - All Bash commands that touch the working tree must be prefixed with
      "cd ${WORKTREE_DIR}/<slug> && ..." or use git -C explicitly.
+   - PREFLIGHT DEPS (do this before running any test): a fresh worktree that
+     symlinks node_modules from the main checkout goes STALE the moment a new
+     @openbench/* workspace package landed on origin/main — its imports fail to
+     resolve and a green change looks red (a false "main is red"). Run the
+     idempotent preflight, which npm-installs only when a workspace package is
+     missing and is a fast no-op otherwise:
+       ${REPO_ROOT}/.claude/scripts/sdlc/ensure-workspace-deps.sh ${WORKTREE_DIR}/<slug>
    - NOTE: .claude/ (hooks, scripts, sdlc state) is NOT tracked on feature
      branches — it lives only in the main checkout. Run SDLC scripts
      (pick-issue.sh / heartbeat.sh / complete-issue.sh) from ${REPO_ROOT}
@@ -74,7 +81,10 @@ Workflow (follow in order):
    - lint:                  cd ${WORKTREE_DIR}/<slug> && npm run lint
    - production build:      cd ${WORKTREE_DIR}/<slug> && npm run build
    Do NOT open a PR if any suite fails — fix it inside the worktree.
-   (If node_modules is missing in a fresh worktree, run \`npm install\` at its root first.)
+   (Before diagnosing ANY import-resolution / "cannot find module @openbench/*"
+    failure as a real red, run the deps preflight — it is almost always a stale
+    symlink, not a source bug:
+      ${REPO_ROOT}/.claude/scripts/sdlc/ensure-workspace-deps.sh ${WORKTREE_DIR}/<slug>)
 
 5. COMMIT + PUSH + OPEN PR (this is how work reaches main)
    - Use conventional-commit prefixes (feat:/fix:/test:/chore:/docs:/refactor:).
