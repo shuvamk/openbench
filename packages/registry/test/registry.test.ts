@@ -41,6 +41,7 @@ const EXPECTED_IDS = [
   "cmp_logic_7404",
   "cmp_logic_7408",
   "cmp_7segment_display",
+  "cmp_timer_ne555",
 ];
 
 const byId = (id: string): Component => {
@@ -492,5 +493,30 @@ describe("digital & visual ICs (batch 6, issue #44)", () => {
         "D{ref}dp {dp} {com} DSEG",
     );
     expect(seg.simModel?.modelCard).toBe(".model DSEG D(IS=1e-14 N=2.0)");
+  });
+
+  it("cmp_timer_ne555 has the eight canonical 555 pins and a behavioral .subckt (issue #87)", () => {
+    const ne555 = byId("cmp_timer_ne555");
+    expect(ne555.category).toBe("active");
+    expect(ne555.pins.map((p) => p.id)).toEqual([
+      "gnd",
+      "trig",
+      "out",
+      "reset",
+      "ctrl",
+      "thres",
+      "disch",
+      "vcc",
+    ]);
+    expect(ne555.parameters).toEqual([]);
+    expect(ne555.simModel?.template).toBe(
+      "X{ref} {gnd} {trig} {out} {reset} {ctrl} {thres} {disch} {vcc} NE555",
+    );
+    // Behavioral model: a hysteretic latch (Cq/Bq), an output buffer, and a
+    // discharge sink — the ⅓/⅔·VCC comparators come from ctrl (or its internal
+    // default). Behavior is verified against REAL WASM ngspice, not MockBackend.
+    expect(ne555.simModel?.subckt).toContain(".subckt NE555 gnd trig out reset ctrl thres disch vcc");
+    expect(ne555.simModel?.subckt).toContain(".ends NE555");
+    expect(ne555.simModel?.subckt).toMatch(/Bout out 0/);
   });
 });

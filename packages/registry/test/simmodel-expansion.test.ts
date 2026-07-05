@@ -317,6 +317,20 @@ describe("digital & visual ICs compile through .subckt (issue #44, batch 6)", ()
     ]);
   });
 
+  it("cmp_timer_ne555 expands to an X card plus its NE555 .subckt block (issue #87)", () => {
+    const result = compilePart("cmp_timer_ne555");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Pins map to nodes in declaration order: gnd=1..vcc=8.
+    const xCard = result.netlist.elements.find((e) => e.instanceId === "X1");
+    expect(xCard?.spiceCard).toBe("XX1 1 2 3 4 5 6 7 8 NE555");
+    const block = result.netlist.elements.find((e) => e.instanceId === "cmp_timer_ne555");
+    expect(block?.spiceCard).toContain(".subckt NE555 gnd trig out reset ctrl thres disch vcc");
+    expect(block?.spiceCard).toContain(".ends NE555");
+    // exactly one X device card + one .subckt definition block
+    expect(result.netlist.elements).toHaveLength(2);
+  });
+
   it("cmp_7segment_display expands to eight D cards sharing one DSEG model card", () => {
     const result = compilePart("cmp_7segment_display");
     expect(result.ok).toBe(true);
