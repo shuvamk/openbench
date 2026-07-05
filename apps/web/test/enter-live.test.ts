@@ -89,13 +89,14 @@ function seedBroken(): ProjectBundle {
   return bundle;
 }
 
-/** A backend that "completes" but returns an empty time base (zero window). */
+/** A backend that "completes" but returns an empty x-axis (zero window). */
 const emptyWindowBackend: SimBackend = {
   name: "empty-window",
   async run(_deck, probes) {
     const signals: Record<string, Float64Array> = {};
     for (const probe of probes) signals[probe] = new Float64Array(0);
-    return { time: new Float64Array(0), signals };
+    // `x` is the BackendResult axis (time for .tran); an empty x is a zero window.
+    return { x: new Float64Array(0), signals };
   },
 };
 
