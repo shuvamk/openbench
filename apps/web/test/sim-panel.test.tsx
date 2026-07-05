@@ -286,6 +286,60 @@ describe("SimPanel", () => {
     expect(screen.getByTestId("sim-mock-fallback-badge").textContent).toMatch(/mock/i);
   });
 
+  it("mock-fallback banner surfaces an engine-load failure as an engine problem", async () => {
+    seedEditor();
+    __setSimBackendFactoryForTests(() =>
+      createFallbackBackend(
+        {
+          name: "eecircuit",
+          run: () =>
+            Promise.reject(
+              new Error("eecircuit-engine failed to load: WebAssembly.instantiate failed"),
+            ),
+        },
+        new MockBackend(),
+        () => {},
+      ),
+    );
+    render(withTheme(<SimPanel />));
+    fireEvent.click(screen.getByRole("button", { name: "Run simulation" }));
+    await waitFor(() => {
+      expect(useSimStore.getState().usedMockFallback).toBe(true);
+    });
+    const badge = screen.getByTestId("sim-mock-fallback-badge");
+    // The real underlying failure reason is surfaced, not a generic string.
+    expect(badge.textContent).toContain("WebAssembly.instantiate failed");
+    // Classified as an engine problem, not the user's circuit.
+    expect(badge.getAttribute("data-fallback-kind")).toBe("engine-unavailable");
+    expect(badge.textContent).toMatch(/engine/i);
+  });
+
+  it("mock-fallback banner surfaces a probe/convergence failure as a circuit problem", async () => {
+    seedEditor();
+    __setSimBackendFactoryForTests(() =>
+      createFallbackBackend(
+        {
+          name: "eecircuit",
+          run: () =>
+            Promise.reject(
+              new Error('probe "net_vout" missing from simulation result (available: time)'),
+            ),
+        },
+        new MockBackend(),
+        () => {},
+      ),
+    );
+    render(withTheme(<SimPanel />));
+    fireEvent.click(screen.getByRole("button", { name: "Run simulation" }));
+    await waitFor(() => {
+      expect(useSimStore.getState().usedMockFallback).toBe(true);
+    });
+    const badge = screen.getByTestId("sim-mock-fallback-badge");
+    expect(badge.textContent).toContain('probe "net_vout" missing');
+    expect(badge.getAttribute("data-fallback-kind")).toBe("circuit");
+    expect(badge.textContent).toMatch(/circuit/i);
+  });
+
   it("does not show the mock-backend badge on a real (non-fallback) run", async () => {
     seedEditor();
     render(withTheme(<SimPanel />));
