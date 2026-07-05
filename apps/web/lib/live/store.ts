@@ -4,6 +4,7 @@ import { decodeSamples } from "@openbench/mcp-sim-ngspice";
 import type { ProjectBundle } from "../project-store";
 import { useEditorStore } from "../editor/store";
 import { useSimStore } from "../sim/store";
+import { deriveErcIssues } from "../editor/erc";
 
 /**
  * Live mode (issue #25): playback + interaction state on top of the editor
@@ -35,8 +36,23 @@ export function liveWindowSeconds(bundle: ProjectBundle | null): number {
   }
 }
 
+/**
+ * Plain-language reason Live couldn't start (issue #72). Reuses the ERC
+ * humanizer (issue #71) so the "why" a beginner sees here matches the
+ * Design-mode ERC copy. Falls back to a generic hint when ERC is clean but
+ * the sim still produced nothing usable (deck/backend error, empty window).
+ */
+export function describeLiveBlock(bundle: ProjectBundle | null): string {
+  if (!bundle) return "Open a project before entering Live mode.";
+  const errors = deriveErcIssues(bundle.schematic).filter((issue) => issue.severity === "error");
+  if (errors.length > 0) return errors[0]!.message;
+  return "This circuit didn’t produce a signal to play. Open the Console tab to see what went wrong.";
+}
+
 export interface LiveState {
   mode: EditorMode;
+  /** Why the last enterLive() attempt stayed in Design (null = no error). */
+  enterError: string | null;
   liveTime: number;
   playing: boolean;
   playbackSpeed: number;
@@ -59,6 +75,7 @@ export interface LiveState {
 
 const initialState = {
   mode: "design" as EditorMode,
+  enterError: null as string | null,
   liveTime: 0,
   playing: false,
   playbackSpeed: 1,
@@ -103,20 +120,29 @@ export const useLiveStore = create<LiveState>((set, get) => {
     async enterLive() {
       const editor = useEditorStore.getState();
       if (!editor.bundle) return;
+      set({ enterError: null });
       if (!latestRun(editor.bundle)) {
         set({ simulating: true });
         await useSimStore.getState().runSimulation();
         set({ simulating: false });
       }
+      // The auto-run may have prepended a completed run — re-read the bundle.
+      // Refuse to enter Live on a dead view: no completed run, or a run whose
+      // time window is empty (nothing to play). Stay in Design and say why.
+      const bundle = useEditorStore.getState().bundle;
+      if (!latestRun(bundle) || liveWindowSeconds(bundle) <= 0) {
+        set({ mode: "design", playing: false, enterError: describeLiveBlock(bundle) });
+        return;
+      }
       // Live mode is a viewer/actuator: no half-drawn wires or armed tools.
       editor.cancelWire();
       useEditorStore.getState().setTool("select");
-      set({ mode: "live", liveTime: 0, playing: true });
+      set({ mode: "live", liveTime: 0, playing: true, enterError: null });
     },
 
     exitLive() {
       clearRerunTimer();
-      set({ mode: "design", playing: false, simulating: false, sliderFor: null });
+      set({ mode: "design", playing: false, simulating: false, sliderFor: null, enterError: null });
     },
 
     setLiveTime(time) {

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Link } from "@astryxdesign/core/Link";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
@@ -113,6 +114,7 @@ export function EditorTopBar() {
   const mode = useLiveStore((s) => s.mode);
   const enterLive = useLiveStore((s) => s.enterLive);
   const exitLive = useLiveStore((s) => s.exitLive);
+  const enterError = useLiveStore((s) => s.enterError);
 
   const [draftName, setDraftName] = useState<string | null>(null);
 
@@ -296,6 +298,18 @@ export function EditorTopBar() {
           />
         </StackItem>
       </HStack>
+
+      {enterError !== null && (
+        <div data-live-error style={{ marginTop: 8 }}>
+          <Banner
+            status="warning"
+            title="Live mode couldn’t start"
+            description={enterError}
+            isDismissable
+            onDismiss={() => useLiveStore.setState({ enterError: null })}
+          />
+        </div>
+      )}
     </div>
   );
 }
