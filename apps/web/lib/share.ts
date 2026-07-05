@@ -73,7 +73,22 @@ function fromBase64Url(payload: string): Uint8Array {
 export async function encodeShare(
   bundle: ProjectBundle,
 ): Promise<string | ShareError> {
-  const bytes = await gzip(JSON.stringify(bundle));
+  return encodeJson(bundle);
+}
+
+/** Inverse of {@link encodeShare}: decode + decompress + parse a payload. */
+export async function decodeShare(payload: string): Promise<ProjectBundle> {
+  return decodeJson<ProjectBundle>(payload);
+}
+
+/**
+ * Generic core of the share codec: gzip-compress + URL-safe base64 any
+ * JSON-serializable value, enforcing the single shared {@link SHARE_URL_LIMIT}.
+ * Bundle sharing (#40) and lesson sharing (#92) both ride this one
+ * implementation and one size budget (see teaching-mode.md §6).
+ */
+export async function encodeJson(value: unknown): Promise<string | ShareError> {
+  const bytes = await gzip(JSON.stringify(value));
   const payload = toBase64Url(bytes);
   if (payload.length > SHARE_URL_LIMIT) {
     return { ok: false, error: "too_large", size: payload.length, limit: SHARE_URL_LIMIT };
@@ -81,8 +96,8 @@ export async function encodeShare(
   return payload;
 }
 
-/** Inverse of {@link encodeShare}: decode + decompress + parse a payload. */
-export async function decodeShare(payload: string): Promise<ProjectBundle> {
+/** Inverse of {@link encodeJson}: decode + decompress + parse a payload. */
+export async function decodeJson<T>(payload: string): Promise<T> {
   const json = await gunzip(fromBase64Url(payload));
-  return JSON.parse(json) as ProjectBundle;
+  return JSON.parse(json) as T;
 }

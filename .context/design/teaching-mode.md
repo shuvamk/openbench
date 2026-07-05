@@ -348,6 +348,15 @@ Dependency order (each depends on the one above). All four filed by this spike:
    "do it for me" affordance is **deferred to a follow-up** — it needs a minimal-
    satisfying-mutation engine derived from `targetBundle`, out of scope for the
    validation panel. Loading a lesson from a share link is #92's codec work.
-4. **[#92] lesson share + AI seam** (p2) — `.openbench-lesson.json` + URL codec on the
-   #40 share codec; `LessonAI` interface + `MockLessonAI`; wire real key-backed
-   impl behind #43's provider. **Depends on:** #89, #40 (share, open), #43 (AI, open).
+4. **[#92] lesson share + AI seam** (p2) — **DONE (#92).** Share codec:
+   `apps/web/lib/share.ts` was generalized to `encodeJson`/`decodeJson` (one gzip +
+   URL-safe-base64 implementation, one `SHARE_URL_LIMIT` budget); `apps/web/lib/lesson/
+   share.ts` (`encodeLessonShare`/`decodeLessonShare`) rides it so a lesson serializes
+   through the exact #40 envelope with `targetBundle`/`startBundle` inside. AI seam:
+   `packages/lesson/src/ai.ts` — `LessonAI` interface + the deterministic, **no-key**
+   `MockLessonAI` (`autoAuthor` → `deriveStepsFromRecording`; `tutor` → static hint +
+   templated unmet-clause + ERC messages) + `defaultLessonAI`. The whole
+   author→share→validate→hint path runs green on `MockLessonAI`. The real key-backed
+   implementation slots in behind the copilot provider **when #43 lands** (still open);
+   loading a lesson link into the editor UI (route + hydrate) is a thin follow-up on
+   this codec. **Depends on:** #89, #40 (closed), #43 (AI, open — mock-only until then).
