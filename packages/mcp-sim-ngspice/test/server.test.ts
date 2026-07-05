@@ -1,10 +1,15 @@
-import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SimulationRun } from "@openbench/ir-schema";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildCli, distEntry } from "../build.mjs";
 import { buildServer, handlers } from "../src/server";
 import { rcNetlist } from "./fixture";
+
+const pkgDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 /**
  * MCP stdio server wrapper for the ngspice adapter (issue #20). buildServer()
@@ -109,11 +114,30 @@ describe("mcp-sim-ngspice handlers (delegation)", () => {
   });
 });
 
-describe("mcp-sim-ngspice server-cli.mjs", () => {
-  it("exits 1 with a build-step-pending message (packaging follow-up)", () => {
-    const cli = fileURLToPath(new URL("../src/server-cli.mjs", import.meta.url));
-    const run = spawnSync(process.execPath, [cli], { encoding: "utf8" });
-    expect(run.status).toBe(1);
-    expect(`${run.stdout}${run.stderr}`).toContain("build step pending");
+describe("mcp-sim-ngspice publishable stdio bin (issue #31)", () => {
+  let client: Client;
+  let transport: StdioClientTransport;
+
+  beforeAll(async () => {
+    await buildCli(pkgDir);
+    transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [distEntry(pkgDir)],
+    });
+    client = new Client({ name: "smoke-test", version: "0.0.0" });
+    await client.connect(transport);
+  }, 30_000);
+
+  afterAll(async () => {
+    await client?.close();
+  });
+
+  it("starts over stdio and lists the ngspice adapter-contract tools", async () => {
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      "build_deck",
+      "run_simulation",
+      "validate",
+    ]);
   });
 });
