@@ -1,0 +1,12 @@
+Title: * OpenBench net_fixture_rc
+Date: Sun Jul  5 12:00:00 2026
+Plotname: Operating Point
+Flags: real
+No. Variables: 2
+No. Points: 1
+Variables:
+	0	v(1)	voltage
+	1	v(2)	voltage
+Values:
+	0	5.0000000000000000e+00
+	2.5000000000000000e+00
