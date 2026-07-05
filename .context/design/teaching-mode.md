@@ -288,6 +288,18 @@ but recording is the default because it guarantees the predicate is *satisfiable
 by the exact mutations that built the target* — no drift between "what the lesson
 asks" and "what the reference circuit is".
 
+**Status (issue 151):** the editor UI layer for steps 1–3 has landed. A pure,
+registry-agnostic view-model (`apps/web/lib/lesson/author.ts`) groups the editor
+undo-history (`past` + the live schematic) into `RecordingBatch[]`
+(`recordingBatchesFromHistory`), derives candidate steps (`deriveStepsFromHistory`
+→ `deriveStepsFromRecording`), and exposes the satisfiability-preserving list
+edits (`editStepInList` / `splitStepInList` / `mergeStepsInList` /
+`loosenStepInList`) plus a per-step live preview (`previewSteps` → `evaluateStep`).
+`apps/web/components/lesson/LessonAuthorPanel.tsx` wires it to the editor store,
+the registry, and ERC, showing each step's pass/fail badge. Like
+`StudentRunnerPanel` (#91), the panel is a standalone, unit-tested component;
+mounting it into the editor chrome is a follow-up.
+
 ---
 
 ## 6. Distribution — stateless, reuses share links (#40), no backend
