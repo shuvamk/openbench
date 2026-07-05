@@ -175,9 +175,71 @@ function activeStepId(container: HTMLElement): string | null {
   return container.querySelector("[data-lesson-runner]")?.getAttribute("data-active-step") ?? null;
 }
 
+/** The finished reference circuit — the lesson's targetBundle for "do it for me". */
+function sevenSegTarget(): Schematic {
+  return {
+    ...emptySchematic(),
+    instances: [
+      { instanceId: "DISP1", componentId: "cmp_7segment_display" },
+      { instanceId: "V1", componentId: "cmp_vsource_dc", parameterOverrides: { voltage: 5 } },
+      { instanceId: "R1", componentId: "cmp_resistor_generic", parameterOverrides: { resistance: 330 } },
+      { instanceId: "GND1", componentId: "cmp_ground" },
+    ],
+    nets: [
+      {
+        netId: "net_supply",
+        name: "SUPPLY",
+        connections: [
+          { instanceId: "V1", pinId: "pos" },
+          { instanceId: "R1", pinId: "p1" },
+        ],
+      },
+      {
+        netId: "net_seg_a",
+        connections: [
+          { instanceId: "R1", pinId: "p2" },
+          { instanceId: "DISP1", pinId: "a" },
+        ],
+      },
+    ],
+  };
+}
+
+function sevenSegLessonWithTarget(): Lesson {
+  return { ...sevenSegLesson(), targetBundle: bundleOf(sevenSegTarget()) };
+}
+
 describe("StudentRunnerPanel", () => {
   beforeEach(() => seed(emptySchematic()));
   afterEach(cleanup);
+
+  it("offers 'do it for me' on an allowAutoPlace step and applies the target mutation to advance", async () => {
+    const { container } = render(
+      withTheme(<StudentRunnerPanel lesson={sevenSegLessonWithTarget()} debounceMs={0} />),
+    );
+    // Student has done step 1 (display + source) → step 2 is active + unsatisfied.
+    setSchematic({ ...emptySchematic(), instances: [DISPLAY, SOURCE] });
+    await waitFor(() => expect(activeStepId(container)).toBe("s2-resistor-a"));
+
+    const host = container.querySelector("[data-lesson-autoplace]");
+    expect(host).not.toBeNull();
+    const button = (host!.querySelector("button") ?? host) as HTMLElement;
+    act(() => button.click());
+
+    // The minimal target mutation was applied → step 2 passes, runner advances.
+    await waitFor(() => expect(activeStepId(container)).toBe("s3-ground"));
+    const placed = useEditorStore.getState().bundle!.schematic.instances;
+    expect(placed.some((i) => i.componentId === "cmp_resistor_generic")).toBe(true);
+  });
+
+  it("does not offer 'do it for me' on a step without allowAutoPlace", async () => {
+    const { container } = render(
+      withTheme(<StudentRunnerPanel lesson={sevenSegLessonWithTarget()} debounceMs={0} />),
+    );
+    // Step 1 is active and is NOT allowAutoPlace.
+    await waitFor(() => expect(activeStepId(container)).toBe("s1-parts"));
+    expect(container.querySelector("[data-lesson-autoplace]")).toBeNull();
+  });
 
   it("wiring the 7-seg circuit step-by-step lights each step green in order", async () => {
     const { container } = render(withTheme(<StudentRunnerPanel lesson={sevenSegLesson()} debounceMs={0} />));
