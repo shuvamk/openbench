@@ -35,6 +35,7 @@ import {
   schottkyDiode,
   sevenSegmentDisplay,
   switchSpst,
+  timerNe555,
   tmp36,
   vsourceDc,
   vsourcePulse,
@@ -72,6 +73,7 @@ export const registryComponents: Component[] = [
   logic7404,
   logic7408,
   sevenSegmentDisplay,
+  timerNe555,
   ground,
   esp32Devkit,
 ];

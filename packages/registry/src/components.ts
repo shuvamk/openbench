@@ -715,6 +715,65 @@ export const sevenSegmentDisplay: Component = {
   provenance: PROVENANCE,
 };
 
+/**
+ * NE555 timer (issue #87) — a behavioral `.subckt`, the last IC deferred from
+ * batch 6 (ADR-0021, since a correct 555 needs an internal latch that had to be
+ * verified against real ngspice, not the synthetic MockBackend).
+ *
+ * The model is a hysteretic relaxation oscillator built from ngspice B-sources
+ * around one internal state node `q` (the SR latch), referenced to global node
+ * `0` like the op-amp / 74xx behavioral parts:
+ *   - `nth`/`ntl` = the upper/lower comparator thresholds. In a real 555 the
+ *     internal 3-resistor divider sets these to ⅔·VCC and ⅓·VCC; if CTRL (pin 5)
+ *     is driven, `nth` follows it (and `ntl` = ½·nth), matching the datasheet.
+ *     `Rctl` gives CTRL a DC path so an open pin 5 stays well-defined.
+ *   - `Cq`/`Bq` = the latch: THRES > nth pushes `q` low (reset), TRIG < ntl pushes
+ *     it high (set), otherwise `q` holds — the current source stops at the rails so
+ *     `q` never runs away. `Bout` buffers `q` to OUT (forced low while RESET is low).
+ *   - `Bdis` = the discharge transistor, modeled as ≈10 Ω from DISCH to ground
+ *     while OUT is low (open otherwise).
+ * In the classic astable (R1 VCC→DISCH, R2 DISCH→THRES=TRIG, C on THRES=TRIG),
+ * this self-oscillates: OUT is a VCC/0 square wave, the cap ramps between ⅓ and
+ * ⅔·VCC at f ≈ 1.44 / ((R1+2·R2)·C). **Verified on real in-browser-grade WASM
+ * ngspice** (eecircuit-engine, run in node): with R1=R2=10 kΩ, C=10 nF the model
+ * self-starts *without* `uic`, OUT crosses 0↔5 V, cap stays within ⅓–⅔·VCC
+ * (ADR-0025). No parameters — timing lives in the external R/R/C, as on real
+ * hardware.
+ */
+export const timerNe555: Component = {
+  irVersion: IR_VERSION,
+  kind: "component",
+  id: "cmp_timer_ne555",
+  name: "555 Timer",
+  category: "active",
+  pins: [
+    { id: "gnd", name: "GND", electricalType: "power_in" },
+    { id: "trig", name: "TRIG", electricalType: "input" },
+    { id: "out", name: "OUT", electricalType: "output" },
+    { id: "reset", name: "RESET", electricalType: "input" },
+    { id: "ctrl", name: "CTRL", electricalType: "input" },
+    { id: "thres", name: "THRES", electricalType: "input" },
+    { id: "disch", name: "DISCH", electricalType: "open_collector" },
+    { id: "vcc", name: "VCC", electricalType: "power_in" },
+  ],
+  parameters: [],
+  simModel: {
+    engine: "ngspice",
+    template: "X{ref} {gnd} {trig} {out} {reset} {ctrl} {thres} {disch} {vcc} NE555",
+    subckt:
+      ".subckt NE555 gnd trig out reset ctrl thres disch vcc\n" +
+      "Rctl ctrl 0 1e12\n" +
+      "Bth nth 0 V = (V(ctrl) > 0.05) ? V(ctrl) : (2*V(vcc)/3)\n" +
+      "Btl ntl 0 V = 0.5*V(nth)\n" +
+      "Cq q 0 1n\n" +
+      "Bq q 0 I = (V(thres) > V(nth)) ? ((V(q) > 0.05) ? 10m : 0) : ((V(trig) < V(ntl)) ? ((V(q) < V(vcc)-0.05) ? -10m : 0) : 0)\n" +
+      "Bout out 0 V = (V(reset) < 0.5*V(vcc)) ? 0 : ((V(q) > 0.5*V(vcc)) ? V(vcc) : 0)\n" +
+      "Bdis disch 0 I = (V(q) > 0.5*V(vcc)) ? 0 : V(disch)/10\n" +
+      ".ends NE555",
+  },
+  provenance: PROVENANCE,
+};
+
 /** Names the ground net only — no simModel; SPICE node 0 comes from the compiler. */
 export const ground: Component = {
   irVersion: IR_VERSION,
