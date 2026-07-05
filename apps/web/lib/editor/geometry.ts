@@ -2,6 +2,8 @@ import type { Component, Schematic } from "@openbench/ir-schema";
 import { refPrefix, type Point } from "./mutations";
 import { clampZoom, MAX_ZOOM } from "./store";
 
+export type { Point };
+
 /**
  * Symbol geometry shared by the canvas renderer and wire routing. All pin
  * offsets are in world units relative to the instance origin (the symbol
@@ -338,4 +340,44 @@ export function fitToContent(components: ComponentBounds[], viewport: Viewport):
   };
 
   return { zoom, pan };
+}
+
+/**
+ * Junction dots (issue #129): given ONE net's wire segments (each an orthogonal
+ * polyline of >=2 points), return the coordinates that form a genuine multi-way
+ * join. Only true endpoints (first + last point of a segment) count —
+ * intermediate bend vertices never form a junction.
+ *
+ * Wires route as a STAR (netWireSegments): an N-pin net emits N-1 segments that
+ * all share the anchor (first pin) as an endpoint. So the anchor's coincident-
+ * endpoint count is N-1, i.e. a genuine 3-pin tee gives it degree 2. A dot is
+ * therefore warranted wherever >= 2 segment endpoints coincide within the net
+ * (the anchor pin is itself a connection, so degree-2 means three pins meet):
+ *   - 2-pin net -> single segment, both endpoints appear once -> no dot.
+ *   - >=3-pin net -> the anchor appears in every arm -> exactly one dot there.
+ * A leaf pin appears once, so leaves never dot. Because the input is a single
+ * net's segments, crossovers between different nets can never produce a junction
+ * (nets are evaluated separately).
+ */
+export function computeJunctions(segments: Point[][]): Point[] {
+  const counts = new Map<string, { point: Point; count: number }>();
+  for (const segment of segments) {
+    const first = segment[0];
+    const last = segment[segment.length - 1];
+    for (const endpoint of [first, last]) {
+      if (!endpoint) continue;
+      const key = `${endpoint.x},${endpoint.y}`;
+      const entry = counts.get(key);
+      if (entry) {
+        entry.count += 1;
+      } else {
+        counts.set(key, { point: { x: endpoint.x, y: endpoint.y }, count: 1 });
+      }
+    }
+  }
+  const junctions: Point[] = [];
+  for (const { point, count } of counts.values()) {
+    if (count >= 2) junctions.push(point);
+  }
+  return junctions;
 }
