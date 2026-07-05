@@ -192,9 +192,27 @@ describe("sim store orchestration", () => {
 
     expect(statuses).toEqual(["queued", "running", "completed"]);
 
-    const finalState = useSimStore.getState();
-    expect(finalState.backendUsed).toBe("mock");
-    expect(finalState.usedMockFallback).toBe(false);
+    const simState = useSimStore.getState();
+    expect(simState.run?.status).toBe("completed");
+    expect(simState.deck).toContain(".tran");
+    expect(simState.backendUsed).toBe("mock");
+    expect(simState.usedMockFallback).toBe(false);
+
+    // Run is stored in the editor bundle, latest first, and linked from the project.
+    const editorBundle = useEditorStore.getState().bundle!;
+    expect(editorBundle.simulationRuns?.[0]?.id).toBe(simState.run!.id);
+    expect(editorBundle.project.latestSimulationRunId).toBe(simState.run!.id);
+
+    // Persisted through the project store.
+    expect(store.save).toHaveBeenCalled();
+    const savedCalls = vi.mocked(store.save).mock.calls;
+    const lastSaved = savedCalls[savedCalls.length - 1]![0];
+    expect(lastSaved.simulationRuns?.[0]?.id).toBe(simState.run!.id);
+
+    // Signals decode.
+    for (const signal of simState.run!.results!.signals) {
+      expect(decodeSamples(signal.samples).length).toBeGreaterThan(0);
+    }
   });
 
   it("advances phase idle → compiling → simulating → done during a run", async () => {
@@ -234,26 +252,6 @@ describe("sim store orchestration", () => {
     expect(state.phase).toBe("done");
     expect(state.usedMockFallback).toBe(true);
     expect(state.backendUsed).toBe("mock");
-
-    const simState = useSimStore.getState();
-    expect(simState.run?.status).toBe("completed");
-    expect(simState.deck).toContain(".tran");
-
-    // Run is stored in the editor bundle, latest first, and linked from the project.
-    const editorBundle = useEditorStore.getState().bundle!;
-    expect(editorBundle.simulationRuns?.[0]?.id).toBe(simState.run!.id);
-    expect(editorBundle.project.latestSimulationRunId).toBe(simState.run!.id);
-
-    // Persisted through the project store.
-    expect(store.save).toHaveBeenCalled();
-    const savedCalls = vi.mocked(store.save).mock.calls;
-    const lastSaved = savedCalls[savedCalls.length - 1]![0];
-    expect(lastSaved.simulationRuns?.[0]?.id).toBe(simState.run!.id);
-
-    // Signals decode.
-    for (const signal of simState.run!.results!.signals) {
-      expect(decodeSamples(signal.samples).length).toBeGreaterThan(0);
-    }
   });
 
   it("stacks a second run in front of the first", async () => {

@@ -30,6 +30,8 @@ function SimulationTab() {
   const step = useSimStore((s) => s.step);
   const probes = useSimStore((s) => s.probes);
   const status = useSimStore((s) => s.status);
+  const usedMockFallback = useSimStore((s) => s.usedMockFallback);
+  const backendUsed = useSimStore((s) => s.backendUsed);
   const run = useSimStore((s) => s.run);
   const hiddenTraceIds = useSimStore((s) => s.hiddenTraceIds);
   const setDuration = useSimStore((s) => s.setDuration);
@@ -130,6 +132,15 @@ function SimulationTab() {
           >
             ▶ Run
           </Button>
+          {usedMockFallback && (
+            <div data-testid="sim-mock-fallback-badge">
+              <Banner
+                status="warning"
+                title="Mock backend — results are not real"
+                description={`The WASM ngspice engine failed to run, so these waveforms came from the deterministic ${backendUsed ?? "mock"} backend. Treat them as placeholder data, not a real simulation.`}
+              />
+            </div>
+          )}
         </VStack>
       </div>
       <WaveformViewer

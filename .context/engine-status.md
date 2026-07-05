@@ -115,6 +115,12 @@
   detection) are implemented but **pending a browser verification session** — only
   the MockBackend ac/dcSweep paths are node-verified so far.
 - Limits: MockBackend 256 samples/signal (transient); WASM ~1M samples/signal (ADR-0007 guard).
+- User-visible fallback (issue #130): the editor's WASM→mock fallback is no longer
+  silent. `runProjectSimulation` returns `backendUsed` + `usedMockFallback`; the sim
+  store exposes `phase` (idle→compiling→simulating→done|failed) plus those two fields.
+  The Run button shows the live phase and SimPanel renders a warning badge whenever
+  results came from the mock backend — so synthetic waveforms are never mistaken for a
+  real ngspice run.
 
 ## PlatformIO (`packages/mcp-firmware-platformio`)
 
