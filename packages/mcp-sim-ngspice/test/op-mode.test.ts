@@ -27,7 +27,7 @@ describe("runSimulation op mode (MockBackend)", () => {
 
     expect(run.status).toBe("completed");
     expect(run.mode).toBe("op");
-    expect(validateSimulationRun(run).ok).toBe(true);
+    expect(validateSimulationRun(run).valid).toBe(true);
 
     const signals = run.results!.signals;
     // op has no independent axis — no time/frequency signal, just the probes.

@@ -46,7 +46,8 @@ describe("runSimulation with NativeNgspiceBackend", () => {
     const run = await runSimulation(rcNetlist, { mode: "op" }, backend, { now: NOW });
     expect(run.status).toBe("failed");
     expect(run.results).toBeUndefined();
-    const log = new TextDecoder().decode(decodeSamples(run.logs!));
+    const b64 = run.logs!.slice("data:text/plain;base64,".length);
+    const log = new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
     expect(log.toLowerCase()).toContain("unavailable");
   });
 
@@ -62,7 +63,7 @@ describe("runSimulation with NativeNgspiceBackend", () => {
       { now: NOW },
     );
     expect(run.status).toBe("completed");
-    expect(validateSimulationRun(run).ok).toBe(true);
+    expect(validateSimulationRun(run).valid).toBe(true);
     const byNet = Object.fromEntries(
       run.results!.signals.map((s) => [s.netId, Array.from(decodeSamples(s.samples))]),
     );

@@ -46,7 +46,16 @@ export interface DcSweepDeckConfig {
   step: number;
 }
 
-export type DeckConfig = TransientDeckConfig | AcDeckConfig | DcSweepDeckConfig;
+/** Operating-point analysis (issue #30) → a bare `.op` card, one sample per signal. */
+export interface OpDeckConfig {
+  mode: "op";
+}
+
+export type DeckConfig =
+  | TransientDeckConfig
+  | AcDeckConfig
+  | DcSweepDeckConfig
+  | OpDeckConfig;
 
 const AC_SWEEPS = new Set(["dec", "oct", "lin"]);
 
@@ -118,6 +127,8 @@ function buildAnalysisCard(config: DeckConfig): string {
       return buildAcCard(config);
     case "dcSweep":
       return buildDcSweepCard(config);
+    case "op":
+      return ".op";
     case undefined:
     case "transient":
       return buildTransientCard(config);

@@ -10,7 +10,7 @@
 | Netlist compiler | `packages/netlist-compiler` | **wired** | pure TS |
 | Registry | `packages/registry` | **wired** — 31 curated parts | pure TS data |
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
-| ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep, WASM+mock backends | WASM (`eecircuit-engine`) in-browser; native CLI pending |
+| ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep/op, WASM+mock+native backends | WASM (`eecircuit-engine`) in-browser; native CLI feature-detected (rawfile parser, real-binary run pending) |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
 | QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader, no live emulator yet) | qemu-system-xtensa launch stub (ADR-0011); firmware-in-the-loop steps 1 (#64) & 2 (#65 GPIO->PWL) |
 
@@ -108,8 +108,23 @@
   first R·C (1k·1u ⇒ −3 dB ≈ 159 Hz); MockBackend dcSweep is a synthetic linear
   transfer (first probe slope 0.5). The MCP server tool surface is still
   transient-only — exposing ac/dcSweep as MCP tools is a follow-up.
-- Verified 2026-07-02: EECircuitBackend ran a real transient in a browser session (RC low-pass demo, deck `.tran 10us 10ms`, physically-correct DC steady-state waveforms, zero console errors). Gaps: native ngspice CLI backend not
-  implemented; operating-point mode pending; remote sample URLs are
+- Operating point + native CLI backend (issue #30): a fourth mode `op` emits a bare
+  `.op` card (no `.tran`) and shapes results as one V sample per net with **no
+  independent axis** (no `time`/`frequency` signal). `NativeNgspiceBackend` sits behind
+  the same `SimBackend` seam: it feature-detects an `ngspice` binary and parses its ASCII
+  rawfile (`SPICE_ASCIIRAWFILE=1`) into a `BackendResult` (axis chosen by the deck card —
+  op/tran/dc; AC/complex rawfiles not yet decoded). Absence is structured, never a throw:
+  `detect()` returns `{ available, binaryPath?, reason? }`; `run()` on an unavailable
+  engine throws a structured `NgspiceAdapterError` that `runSimulation` maps to
+  `status:"failed"` (`engine-unavailable`). `locate`/`execute` hooks are injectable, so the
+  backend and the `parseRawfile`/`serializeRawfile` round-trip are unit-tested with **zero
+  ngspice binary** on the runner (fixture `test/fixtures/rc-op.raw`). MockBackend gained an
+  `op` branch (one synthetic DC-bias sample per probe). The MCP server tool surface is still
+  transient-only — exposing ac/dcSweep/op and wiring the native backend as MCP tools is a follow-up.
+- Verified 2026-07-02: EECircuitBackend ran a real transient in a browser session (RC low-pass demo, deck `.tran 10us 10ms`, physically-correct DC steady-state waveforms, zero console errors). Gaps: the native ngspice CLI
+  backend's real spawn+run path (default `locate`/`execute`) is exercised only with
+  injected hooks in tests — a run against a real installed `ngspice` binary is still
+  pending; remote sample URLs are
   pass-through (`decodeSamples` throws for http/s3). EECircuitBackend `ac`/`dcSweep`
   paths (complex→dB/deg mapping via `img`/`real`, frequency/swept-source axis
   detection) are implemented but **pending a browser verification session** — only

@@ -1,5 +1,6 @@
 import type { ResultType, Simulation } from "eecircuit-engine";
 import { NgspiceAdapterError, parseSpiceTime } from "./deck";
+import { parseRawfile, type RawPlot } from "./rawfile";
 
 /**
  * A backend run result (issue #36 generalized the transient-only shape).
@@ -68,6 +69,8 @@ export class MockBackend implements SimBackend {
     const tran = /^\.tran\s+(\S+)\s+(\S+)\s*$/im.exec(deck);
     if (tran) return this.runTransient(probes, tran);
 
+    if (/^\.op\s*$/im.test(deck)) return this.runOp(probes);
+
     throw new NgspiceAdapterError("deck has no analysis card — cannot derive an axis", [
       { path: "deck", message: "missing .tran / .ac / .dc card" },
     ]);
@@ -115,6 +118,15 @@ export class MockBackend implements SimBackend {
       phase[probe] = ph;
     }
     return { x, signals, phase };
+  }
+
+  private runOp(probes: string[]): BackendResult {
+    // Operating point: a single DC-bias sample per probe, no independent axis.
+    const signals: Record<string, Float64Array> = {};
+    probes.forEach((probe, index) => {
+      signals[probe] = new Float64Array([1 + index * 0.5]);
+    });
+    return { x: new Float64Array([0]), signals };
   }
 
   private runDcSweep(probes: string[], dc: RegExpExecArray): BackendResult {
@@ -347,5 +359,161 @@ export class EECircuitBackend implements SimBackend {
     const signals: Record<string, Float64Array> = {};
     for (const probe of probes) signals[probe] = toFloat64(findProbe(probe).values, probe);
     return { x: toFloat64(timeVector.values, timeVector.name), signals };
+  }
+}
+
+/** Structured feature-detection result for the native CLI backend (issue #30). */
+export interface NativeNgspiceAvailability {
+  available: boolean;
+  binaryPath?: string;
+  reason?: string;
+}
+
+export interface NativeNgspiceHooks {
+  /** Custom binary name/path to probe; defaults to `ngspice` on PATH. */
+  binaryName?: string;
+  /** Resolve the ngspice binary to an absolute path, or null if absent. Injectable for tests. */
+  locate?: () => Promise<string | null>;
+  /** Run a deck through ngspice in batch mode and return the ASCII rawfile text. Injectable for tests. */
+  execute?: (binaryPath: string, deck: string) => Promise<string>;
+}
+
+/**
+ * Native ngspice CLI backend (issue #30): feature-detects an `ngspice` binary,
+ * runs a deck in batch mode, and parses the ASCII rawfile into a BackendResult.
+ * Node-only — the default `locate`/`execute` lazily import node builtins so
+ * importing this module never breaks a browser bundle (both hooks are injectable
+ * for deterministic, binary-free unit tests).
+ *
+ * Absence is a first-class, structured state: `detect()` returns
+ * `{ available: false, reason }` and never throws; `run()` on an unavailable
+ * engine throws a structured `NgspiceAdapterError` (which `runSimulation` maps to
+ * a `status: "failed"` run), so the seam never surfaces a raw engine crash.
+ */
+export class NativeNgspiceBackend implements SimBackend {
+  readonly name = "ngspice-native";
+  private readonly binaryName: string;
+  private readonly locate: () => Promise<string | null>;
+  private readonly execute: (binaryPath: string, deck: string) => Promise<string>;
+
+  constructor(hooks: NativeNgspiceHooks = {}) {
+    this.binaryName = hooks.binaryName ?? "ngspice";
+    this.locate = hooks.locate ?? (() => defaultLocate(this.binaryName));
+    this.execute = hooks.execute ?? ((binaryPath, deck) => defaultExecute(binaryPath, deck));
+  }
+
+  async detect(): Promise<NativeNgspiceAvailability> {
+    try {
+      const binaryPath = await this.locate();
+      if (!binaryPath) {
+        return { available: false, reason: `ngspice binary "${this.binaryName}" not found on PATH` };
+      }
+      return { available: true, binaryPath };
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      return { available: false, reason: `ngspice feature-detection failed: ${message}` };
+    }
+  }
+
+  async run(deck: string, probes: string[]): Promise<BackendResult> {
+    const availability = await this.detect();
+    if (!availability.available || !availability.binaryPath) {
+      throw new NgspiceAdapterError(
+        `ngspice engine unavailable: ${availability.reason ?? "unknown"}`,
+        [{ path: "backend", message: "engine-unavailable" }],
+      );
+    }
+
+    let rawText: string;
+    try {
+      rawText = await this.execute(availability.binaryPath, deck);
+    } catch (cause) {
+      throw new NgspiceAdapterError(
+        `native ngspice run failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        [{ path: "backend", message: "native ngspice run failed" }],
+      );
+    }
+
+    return shapeRawPlot(deck, parseRawfile(rawText), probes);
+  }
+}
+
+/** Find a probe's vector in a rawfile, case-insensitively. */
+function rawVector(plot: RawPlot, name: string): Float64Array {
+  const key = Object.keys(plot.vectors).find((n) => n.toLowerCase() === name.toLowerCase());
+  if (key === undefined) {
+    const available = plot.variables.map((v) => v.name).join(", ");
+    throw new NgspiceAdapterError(
+      `probe "${name}" missing from ngspice rawfile (available: ${available})`,
+      [{ path: "rawfile", message: `probe "${name}" not found` }],
+    );
+  }
+  return plot.vectors[key]!;
+}
+
+/** Map a parsed real rawfile to a BackendResult, choosing the axis by the deck's analysis card. */
+function shapeRawPlot(deck: string, plot: RawPlot, probes: string[]): BackendResult {
+  if (/^\.ac\b/im.test(deck)) {
+    throw new NgspiceAdapterError("native backend does not yet decode AC (complex) rawfiles", [
+      { path: "backend", message: "AC not supported by the native rawfile parser" },
+    ]);
+  }
+
+  const signals: Record<string, Float64Array> = {};
+  for (const probe of probes) signals[probe] = rawVector(plot, probe);
+
+  if (/^\.op\b/im.test(deck)) {
+    // Operating point: no independent axis, one sample per probe.
+    return { x: new Float64Array([0]), signals };
+  }
+
+  if (/^\.dc\b/im.test(deck)) {
+    // Swept-source axis = the first variable that isn't a probed voltage.
+    const axisVar =
+      plot.variables.find((v) => !probes.some((p) => p.toLowerCase() === v.name.toLowerCase())) ??
+      plot.variables[0]!;
+    return { x: plot.vectors[axisVar.name]!, signals };
+  }
+
+  // Transient (default): the time variable is the axis.
+  const timeVar =
+    plot.variables.find((v) => v.type === "time" || v.name.toLowerCase() === "time") ??
+    plot.variables[0]!;
+  return { x: plot.vectors[timeVar.name]!, signals };
+}
+
+/** Default binary probe: `ngspice --version` exits 0 iff the binary is on PATH. */
+async function defaultLocate(binaryName: string): Promise<string | null> {
+  const { execFile } = await import("node:child_process");
+  return new Promise<string | null>((resolve) => {
+    execFile(binaryName, ["--version"], { timeout: 5000 }, (err) => {
+      resolve(err ? null : binaryName);
+    });
+  });
+}
+
+/** Default batch run: write the deck, run ngspice with an ASCII rawfile, read it back. */
+async function defaultExecute(binaryPath: string, deck: string): Promise<string> {
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const fs = await import("node:fs/promises");
+  const { execFile } = await import("node:child_process");
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openbench-ngspice-"));
+  const deckPath = path.join(dir, "deck.cir");
+  const rawPath = path.join(dir, "out.raw");
+  await fs.writeFile(deckPath, deck, "utf8");
+  try {
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        binaryPath,
+        ["-b", "-r", rawPath, deckPath],
+        { env: { ...globalThis.process?.env, SPICE_ASCIIRAWFILE: "1" }, timeout: 60_000 },
+        (err) => (err ? reject(err) : resolve()),
+      );
+    });
+    return await fs.readFile(rawPath, "utf8");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
   }
 }
