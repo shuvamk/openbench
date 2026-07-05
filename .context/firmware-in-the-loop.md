@@ -4,7 +4,8 @@
 > (#64/#65/#66, 2026-07-05). This document is the written output of the time-boxed
 > research asked for in issue #29 and is referenced by **ADR-0018**. It closes the last
 > open piece of the Phase-1 loop (`firmware → virtual MCU → circuit`) at the *design*
-> level and resolves open question **Q3**. Item 4 (Direction-B lockstep) remains a spike.
+> level and resolves open question **Q3**. Item 4 (Direction-B lockstep) is now designed too
+(spike #67 → ADR-0024, `.context/cosim-lockstep.md`).
 >
 > **Implementation status (bottom of file lists the issues):**
 > - Item 1 (#64) — `packages/mcp-firmware-platformio/src/gpio-poller.ts`: `GpioPoller` /
@@ -180,4 +181,8 @@ Items 1–3 are the concrete Phase-1.5 loop; item 4 is the Phase-2 bidirectional
 
 **Status:** items 1 (#64), 2 (#65) and 3 (#66) are ✅ landed — the poll→PWL→derive loop
 now blinks the on-canvas LED end to end (see the implementation-status note at the top of
-this file). Item 4 is still an open spike.
+this file). Item 4 (Direction-B lockstep) is now **designed** (spike #67 → ADR-0024,
+`.context/cosim-lockstep.md`): scheduler-master conservative fixed-quantum lockstep with
+GDB register-write injection into `GPIO_IN`/ADC, `mode:"cosim"`, no IR change. Its own
+implementation follow-ups (RSP write seam, lockstep scheduler, ADC live-verify, frontend
+cosim mode) are enumerated there.

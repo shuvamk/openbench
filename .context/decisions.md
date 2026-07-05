@@ -501,3 +501,50 @@ degrade gracefully to file export rather than emitting a broken mega-URL. `readO
 reusable primitive for any future view-only surface. Explicitly **not** collaboration:
 there is no shared mutable state, no presence, no CRDT — a shared link is a snapshot.
 Follows ADR-0008.
+
+## ADR-0024 — Direction-B lockstep co-sim: scheduler-master, conservative fixed-quantum, GDB register-write injection (spike #67, 2026-07-06)
+
+**Decision:** The reverse firmware-in-the-loop direction (circuit → firmware, i.e. a node
+voltage becoming a `digitalRead`/ADC value inside the emulator) is designed as
+**conservative fixed-quantum lockstep co-simulation driven by a neutral scheduler**, not by
+either engine. A `packages/cosim` orchestrator owns virtual time and advances **both**
+`qemu-system-xtensa` and ngspice to a shared barrier `t_{k+1}=t_k+Δt` each round: step QEMU
+by Δt → read `GPIO_OUT`/`GPIO_ENABLE` (Direction A, unchanged) → step ngspice by Δt with the
+PWL sources held → sample the analog input nets at the barrier → quantize and **write**
+`GPIO_IN_REG` (digital threshold+hysteresis) / the SAR ADC result registers over the stock
+GDB stub before the next QEMU step. Neither engine ever runs more than one quantum ahead, so
+there is no causal violation; within a quantum each engine holds the other's previous-barrier
+value (zero-order hold). **QEMU must launch with `-icount shift=N`** (new vs. ADR-0018's
+`-s`) so "advance by Δt" is a deterministic, reproducible function of executed instructions.
+Sync granularity is a documented `cosimQuantumUs` knob (coarse 100 µs–1 ms for digital-in,
+finer 10–50 µs when an ADC channel is mapped) plus an optional **GDB read-watchpoint
+"resync-on-read"** fast path on the input registers — the same poll→watchpoint escalation
+ADR-0018 reserved. The GPIO_IN/ADC write mechanism is the RSP `M addr,len:data` packet via a
+new `MemoryWriter`/`RspMemoryWriter` seam mirroring the existing read-only `MemoryReader`,
+with an injected execution-control seam so the scheduler is unit-testable with zero QEMU.
+Full design finding: `.context/cosim-lockstep.md`.
+
+**Rationale:** Neither QEMU (instruction-driven) nor ngspice (adaptive-timestep transient)
+has a natural hook to host the other's loop, so a small external scheduler owning the clock
+— exactly mirroring how `pollGpio` already owns the Direction-A loop — is the least-invasive
+master. Conservative lockstep is chosen over optimistic/rollback co-sim because neither
+engine offers cheap checkpoint+restore. Register-write injection reuses a debug surface that
+provably exists (the GDB stub already writes target memory) and needs no custom QEMU build or
+unstable trace surface, consistent with ADR-0018's non-invasive stance. Read-modify-write on
+the 32-pin `GPIO_IN_REG` avoids clobbering unrelated pins; Schmitt-style VIH/VIL hysteresis
+matches a real ESP32 input buffer. `-icount` is non-negotiable for reproducibility.
+
+**Consequences:** **No `packages/ir-schema` change** — a lockstep run is a `qemu`-engine
+`simulationRun` with `mode:"cosim"` (`mode` is a free string; `"live"` stays Direction A),
+`config:{ mode, quantumUs, durationUs, gpioMap?, adcMap? }`, `waveform-v1` result. Input
+GPIO→net and ADC-channel→net bindings are **derived** from the `cmp_esp32_devkit` pin→net
+connections (reverse of ADR-0018); optional additive `firmwareTarget.gpioMap?`/`adcMap?`
+escape hatches are flagged, not built. **Scope split:** digital-in (`GPIO_IN` threshold)
+injection is the lockstep MVP and is fully unit-testable against an injected transport; **ADC
+result-register injection is designed but gated on a live-QEMU verification session** (which
+`SENS_SAR_MEAS*` field, attenuation transfer curve), the same live-verification gate ADR-0021
+applied to behaviors that cannot be trusted against a synthetic backend. Four follow-up issues
+are enumerated in the finding: (1) RSP write + exec-control seam, (2) fixed-quantum lockstep
+scheduler with digital threshold, (3) live-verified ADC injection spike, (4) frontend
+`mode:"cosim"` wiring. Drive/threshold constants (VIH≈2.475 V, VIL≈0.825 V, ADC
+`code=4095·V/Vfs`) are documented bridge approximations (ADR-0013). Follows ADR-0018.
