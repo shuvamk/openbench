@@ -145,6 +145,14 @@ Status of each: [engine-status.md](engine-status.md).
   parts become keyboard-placeable automatically. Every command routes through the same
   store actions the palette-less UI uses (e.g. add-component → `store.place`), so there is
   no second mutation path.
+- Bill of Materials (issue #39): `apps/web/lib/bom.ts` is a pure projection of the
+  schematic IR — `buildBom(schematic, resolveComponent?)` groups instances by
+  `componentId` + resolved parameters into `{refs, componentId, value, qty, footprint?}`
+  lines, splitting footprint-less parts (ground/sources) into a `virtual` section and
+  keeping registry-unknown instances flagged rather than dropped. `bomToCsv`/`parseBomCsv`
+  are an RFC-4180 round-trip pair. `components/editor/BomPanel.tsx` renders it with an
+  Astryx `Table` + CSV export; `BomButton.tsx` opens it from the top bar in a Dialog.
+  Component resolution is injected (default `getComponent`), mirroring the ERC adapter.
 
 ### 5. Desktop shell — `apps/desktop`
 - Electron shell that wraps the `apps/web` UI, first slice of the desktop pivot
