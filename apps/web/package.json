@@ -19,7 +19,8 @@
     "@openbench/registry": "*",
     "@openbench/netlist-compiler": "*",
     "@openbench/mcp-kicad": "*",
-    "@openbench/mcp-sim-ngspice": "*"
+    "@openbench/mcp-sim-ngspice": "*",
+    "@openbench/mcp-firmware-platformio": "*"
   },
   "devDependencies": {
     "@astryxdesign/cli": "^0.1.2",
