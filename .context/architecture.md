@@ -88,8 +88,21 @@ other directly — every hand-off is an IR document.
 - ERC (`packages/erc`) is an **advisory feed only**: violations touching a step's bound
   instances/nets surface as templated `warnings` that never gate `passed` (§3.4). Depends
   on `@openbench/ir-schema` + `@openbench/erc`; imported by the future authoring UI and
-  student runner. Follow-ups: authoring-by-recording (#90), student runner (#91), share +
-  AI seam (#92).
+  student runner.
+- **Author-by-recording** (issue #90, design §5): `deriveStepsFromRecording(batches,
+  options?) → Step[]` turns an editor mutation recording — a sequence of cumulative
+  schematic snapshots, one per undo-history batch (#18) — into candidate steps. Each
+  batch's structural diff maps instances-added → `component` clauses (role = the
+  instanceId, `where` seeded from the placed parameter overrides as exact `eq`) and
+  nets-formed/extended → `connected` clauses over the net's pins; pure-move batches yield
+  no step. Because the derivation emits exactly the predicate the built schematic
+  satisfies, **every derived step passes against the final snapshot by construction** (no
+  drift). Companion satisfiability-preserving edits: `loosenConstraints(step, pct)` (exact
+  `eq` → ±pct% `approx`), `splitStep` (one step per top-level clause — sibling-bound roles
+  become free existentials, still bind), `mergeSteps` (union the clauses). The
+  *teaching-author editor mode* that groups undo history into batches and lets authors
+  edit instruction/hint/constraints is a separately-filed UI follow-up. Follow-ups: student
+  runner (#91), share + AI seam (#92).
 
 ### 3. Engine adapters — `packages/mcp-*`
 Each adapter is an MCP server exposing the standard tool contract
