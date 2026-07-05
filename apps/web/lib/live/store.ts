@@ -61,8 +61,18 @@ export interface LiveState {
   simulating: boolean;
   /** Pot/LDR instance whose value slider popover is open. */
   sliderFor: string | null;
+  /**
+   * Issue #73: a successful Design-mode run produced a live-visualizable
+   * circuit, so we nudge the user toward Live. Cleared on entering Live or
+   * on explicit dismiss; never re-pops on its own.
+   */
+  nudge: boolean;
 
   setSliderFor(instanceId: string | null): void;
+  /** Show the Design→Live nudge (caller has already checked hasLiveVisual). */
+  showNudge(): void;
+  /** Dismiss the nudge without entering Live. */
+  dismissNudge(): void;
   enterLive(): Promise<void>;
   exitLive(): void;
   setLiveTime(time: number): void;
@@ -82,6 +92,7 @@ const initialState = {
   loop: true,
   simulating: false,
   sliderFor: null as string | null,
+  nudge: false,
 };
 
 let rerunTimer: ReturnType<typeof setTimeout> | null = null;
@@ -117,6 +128,14 @@ export const useLiveStore = create<LiveState>((set, get) => {
       set({ sliderFor: instanceId });
     },
 
+    showNudge() {
+      set({ nudge: true });
+    },
+
+    dismissNudge() {
+      set({ nudge: false });
+    },
+
     async enterLive() {
       const editor = useEditorStore.getState();
       if (!editor.bundle) return;
@@ -137,7 +156,7 @@ export const useLiveStore = create<LiveState>((set, get) => {
       // Live mode is a viewer/actuator: no half-drawn wires or armed tools.
       editor.cancelWire();
       useEditorStore.getState().setTool("select");
-      set({ mode: "live", liveTime: 0, playing: true, enterError: null });
+      set({ mode: "live", liveTime: 0, playing: true, enterError: null, nudge: false });
     },
 
     exitLive() {
