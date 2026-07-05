@@ -51,9 +51,14 @@ other directly — every hand-off is an IR document.
 - Reads only the schematic IR and each component's `pin.electricalType` — no engine,
   no IR change. Rules: `ERC_NO_GROUND`, `ERC_FLOATING_PIN`, `ERC_POWER_NOT_DRIVEN`,
   `ERC_OUTPUT_CONFLICT`, `ERC_SINGLE_PIN_NET`, `ERC_UNRESOLVED_COMPONENT`. Never throws —
-  malformed input becomes a violation. Feeds the inspector's ERC panel (follow-up) and
-  the AI copilot's "why won't this work?" explanations. Component resolution is injected,
-  mirroring the netlist compiler's decoupling from the registry.
+  malformed input becomes a violation. Component resolution is injected, mirroring the
+  netlist compiler's decoupling from the registry.
+- **Surfaced in the editor** (issue #71): `apps/web/lib/editor/erc.ts` is a pure
+  schematic → view-model adapter (`deriveErcIssues`, `instanceSeverities`) that turns the
+  machine `Violation`s into plain-language issues — no `ERC_*` code ever reaches the DOM.
+  The Inspector renders an always-on "Issues" panel (`components/editor/ErcPanel.tsx`),
+  click-to-select the offending instance; the canvas badges flagged instances by severity.
+  Also feeds the AI copilot's "why won't this work?" explanations.
 
 ### 2.6 Authoring layer — `packages/schematic-ops`
 - Headless, pure `Schematic → Schematic` mutations: `placeInstance`, `moveInstance`,

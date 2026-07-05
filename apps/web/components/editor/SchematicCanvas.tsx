@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Component, Net, Schematic } from "@openbench/ir-schema";
 import { getComponent } from "@openbench/registry";
 import {
@@ -10,6 +10,7 @@ import {
   orthogonalPoints,
   toPolylinePoints,
 } from "../../lib/editor/geometry";
+import { deriveErcIssues, instanceSeverities } from "../../lib/editor/erc";
 import { clampZoom, useEditorStore, type Point } from "../../lib/editor/store";
 import { useLiveStore } from "../../lib/live/store";
 import { LiveOverlays, LiveSliderPopover } from "./LiveOverlays";
@@ -67,6 +68,13 @@ export function SchematicCanvas() {
   const [marquee, setMarquee] = useState<{ a: Point; b: Point } | null>(null);
 
   const schematic = bundle?.schematic ?? null;
+
+  // ERC severity per instance, memoized off the schematic, so offending parts
+  // get a badge on the canvas (issue #71). Empty map ⇒ nothing rendered.
+  const ercSeverityByInstance = useMemo(
+    () => (schematic ? instanceSeverities(deriveErcIssues(schematic)) : new Map()),
+    [schematic],
+  );
 
   const clientToWorld = useCallback(
     (clientX: number, clientY: number): Point => {
@@ -339,6 +347,7 @@ export function SchematicCanvas() {
             const placement = getInstancePlacement(schematic, instance.instanceId);
             const geometry = getSymbolGeometry(component);
             const selected = selection.includes(instance.instanceId);
+            const ercSeverity = ercSeverityByInstance.get(instance.instanceId);
             return (
               <g
                 key={instance.instanceId}
@@ -371,6 +380,14 @@ export function SchematicCanvas() {
                 >
                   {instance.instanceId}
                 </text>
+                {ercSeverity && (
+                  <ErcBadge
+                    x={geometry.halfWidth + 5}
+                    y={-geometry.halfHeight - 5}
+                    severity={ercSeverity}
+                    instanceId={instance.instanceId}
+                  />
+                )}
                 {component.pins.map((pin) => {
                   const offset = geometry.pins[pin.id];
                   if (!offset) return null;
@@ -458,6 +475,46 @@ function LiveSliderSlot() {
   const mode = useLiveStore((s) => s.mode);
   if (mode !== "live") return null;
   return <LiveSliderPopover />;
+}
+
+/**
+ * A small severity badge pinned to an instance's top-right corner when ERC
+ * flags it (issue #71). Non-interactive so it never steals the grab gesture;
+ * colored from theme feedback tokens.
+ */
+function ErcBadge({
+  x,
+  y,
+  severity,
+  instanceId,
+}: {
+  x: number;
+  y: number;
+  severity: "error" | "warning";
+  instanceId: string;
+}) {
+  const color = severity === "error" ? "var(--ob-erc-error)" : "var(--ob-erc-warning)";
+  return (
+    <g
+      data-erc-badge={instanceId}
+      data-erc-severity={severity}
+      transform={`translate(${x}, ${y})`}
+      pointerEvents="none"
+    >
+      <circle r={6} fill={color} />
+      <text
+        x={0}
+        y={0.5}
+        fontSize={9}
+        fontWeight={700}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill="var(--ob-symbol-body)"
+      >
+        !
+      </text>
+    </g>
+  );
 }
 
 function netWireSegments(schematic: Schematic, net: Net): Point[][] {
