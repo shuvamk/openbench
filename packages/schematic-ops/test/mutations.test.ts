@@ -15,7 +15,7 @@ import {
   placeInstance,
   rotateInstance,
   setParameterOverride,
-} from "../lib/editor/mutations";
+} from "../src/index";
 
 /** Seeded rc-lowpass-style schematic used across the mutation tests. */
 function rcLowpass(): Schematic {

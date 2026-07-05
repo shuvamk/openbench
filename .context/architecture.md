@@ -55,6 +55,17 @@ other directly — every hand-off is an IR document.
   the AI copilot's "why won't this work?" explanations. Component resolution is injected,
   mirroring the netlist compiler's decoupling from the registry.
 
+### 2.6 Authoring layer — `packages/schematic-ops`
+- Headless, pure `Schematic → Schematic` mutations: `placeInstance`, `moveInstance`,
+  `rotateInstance`, `connectPins`, `deleteSelection`, `setParameterOverride`, plus
+  `snapToGrid`/`refPrefix` helpers. Every op returns a NEW schematic that still passes
+  `validateSchematic`; unknown ids are no-ops.
+- Depends on `@openbench/ir-schema` only (no Next.js, no UI, no engine), so the
+  agent-control MCP server (#33) and the in-app editor import the SAME implementation and
+  can never drift (issue #68 / ADR-0019). `apps/web/lib/editor/mutations.ts` now re-exports
+  from this package; the zustand store still wraps these with dirty-tracking + debounced
+  persistence.
+
 ### 3. Engine adapters — `packages/mcp-*`
 Each adapter is an MCP server exposing the standard tool contract
 (`import`, `export`, `validate`) plus engine-specific tools (e.g. `runSimulation`).
@@ -89,8 +100,9 @@ Status of each: [engine-status.md](engine-status.md).
   built from Astryx components + tokens; editor canvas is bespoke SVG but themed with
   Astryx CSS custom properties.
 - Editor architecture: document store (zustand) holds IR documents; canvas renders
-  schematic IR; every edit is a pure IR mutation (`apps/web/lib/editor/mutations.ts` —
-  no separate canvas model), autosaved (debounced) through the `ProjectStore` interface
+  schematic IR; every edit is a pure IR mutation (`@openbench/schematic-ops`, re-exported
+  through `apps/web/lib/editor/mutations.ts` — no separate canvas model), autosaved
+  (debounced) through the `ProjectStore` interface
   (`apps/web/lib/project-store/`, IndexedDB with memory fallback, ADR-0008). The
   simulation panel compiles via netlist-compiler + registry resolver and consumes
   `simulationRun` IR (waveform-v1, inline samples).
