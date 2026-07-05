@@ -9,6 +9,7 @@ import type { ProjectBundle } from "./project-store/types";
 /** Starter templates offered by the "New project" dialog. */
 export type TemplateKind =
   | "blank"
+  | "basic-led"
   | "rc-lowpass"
   | "esp32-blink"
   | "playground"
@@ -28,6 +29,61 @@ type SchematicContent = Pick<Schematic, "instances" | "nets"> & {
 };
 
 const blankContent = (): SchematicContent => ({ instances: [], nets: [] });
+
+/**
+ * Basic LED — the "hello world" of electronics and the gentlest possible
+ * starter. V1 (5V DC) → R1 (330Ω current limiter) → D1 (LED anode); the
+ * cathode returns to the source's neg / GND. At 5V the 330Ω resistor keeps the
+ * LED comfortably lit (~10mA), so a run makes it glow steadily in Live — no
+ * microcontroller, no recipe to memorise, just battery + resistor + LED.
+ */
+const basicLedContent = (): SchematicContent => ({
+  instances: [
+    { instanceId: "V1", componentId: "cmp_vsource_dc" },
+    {
+      instanceId: "R1",
+      componentId: "cmp_resistor_generic",
+      parameterOverrides: { resistance: 330 },
+    },
+    { instanceId: "D1", componentId: "cmp_led_generic" },
+    { instanceId: "GND1", componentId: "cmp_ground" },
+  ],
+  nets: [
+    {
+      netId: "net_vplus",
+      name: "VPLUS",
+      connections: [
+        { instanceId: "V1", pinId: "pos" },
+        { instanceId: "R1", pinId: "p1" },
+      ],
+    },
+    {
+      netId: "net_led_a",
+      name: "LED_A",
+      connections: [
+        { instanceId: "R1", pinId: "p2" },
+        { instanceId: "D1", pinId: "anode" },
+      ],
+    },
+    {
+      netId: "net_gnd",
+      name: "GND",
+      connections: [
+        { instanceId: "D1", pinId: "cathode" },
+        { instanceId: "V1", pinId: "neg" },
+        { instanceId: "GND1", pinId: "gnd" },
+      ],
+    },
+  ],
+  layout: {
+    instances: {
+      V1: { x: 120, y: 180, rotation: 0 },
+      R1: { x: 280, y: 100, rotation: 90 },
+      D1: { x: 440, y: 180, rotation: 0 },
+      GND1: { x: 280, y: 320, rotation: 0 },
+    },
+  },
+});
 
 /**
  * RC low-pass: V1 (0→5V ~1kHz pulse) → R1 (4.7kΩ) → C1 (100nF) → GND.
@@ -373,6 +429,7 @@ const rlcRingingContent = (): SchematicContent => ({
 
 const contentByKind: Record<TemplateKind, () => SchematicContent> = {
   blank: blankContent,
+  "basic-led": basicLedContent,
   "rc-lowpass": rcLowpassContent,
   "esp32-blink": esp32BlinkContent,
   playground: playgroundContent,
@@ -392,6 +449,11 @@ export const TEMPLATE_OPTIONS: {
   description: string;
 }[] = [
   { value: "blank", label: "Blank", description: "An empty bench to build from scratch." },
+  {
+    value: "basic-led",
+    label: "Basic LED",
+    description: "The classic first circuit: a battery lighting an LED through a resistor.",
+  },
   {
     value: "rc-lowpass",
     label: "RC low-pass filter",
