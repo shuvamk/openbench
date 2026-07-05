@@ -123,8 +123,9 @@ describe("CommandPalette", () => {
     const input = screen.getByRole("combobox");
     fireEvent.change(input, { target: { value: "run" } });
 
-    expect(await screen.findByText("Run simulation")).toBeInTheDocument();
-    expect(screen.queryByText("Add Resistor")).not.toBeInTheDocument();
+    // findByText throws if absent, so this both waits and asserts presence.
+    expect(await screen.findByText("Run simulation")).toBeTruthy();
+    expect(screen.queryByText("Add Resistor")).toBeNull();
   });
 
   it("arrow keys move selection and Enter invokes the highlighted command", async () => {

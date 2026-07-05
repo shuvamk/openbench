@@ -70,7 +70,7 @@ describe("editor commands (model)", () => {
     }
   });
 
-  it("exposes a 'Run simulation' action discoverable by typing 'run'", () => {
+  it("exposes a 'Run simulation' action discoverable by typing 'run'", async () => {
     const commands = buildEditorCommands(noopDeps());
     expect(commands.some((c) => c.label === "Run simulation")).toBe(true);
 
@@ -79,7 +79,7 @@ describe("editor commands (model)", () => {
       keywords: (item) =>
         (item.auxiliaryData as { keywords?: string[] }).keywords ?? [],
     });
-    const hits = source.search("run").map((item) => item.label);
+    const hits = (await source.search("run")).map((item) => item.label);
     expect(hits).toContain("Run simulation");
     // A component isn't surfaced by "run".
     expect(hits.some((label) => label.startsWith("Add "))).toBe(false);
