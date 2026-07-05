@@ -548,3 +548,36 @@ are enumerated in the finding: (1) RSP write + exec-control seam, (2) fixed-quan
 scheduler with digital threshold, (3) live-verified ADC injection spike, (4) frontend
 `mode:"cosim"` wiring. Drive/threshold constants (VIH≈2.475 V, VIL≈0.825 V, ADC
 `code=4095·V/Vfs`) are documented bridge approximations (ADR-0013). Follows ADR-0018.
+
+## ADR-0025 — NE555 ships as a behavioral `.subckt`, verified on real WASM ngspice in node (issue #87, 2026-07-06)
+
+**Decision:** `cmp_timer_ne555` — the one IC batch 6 (ADR-0021) deferred — now ships in the
+registry as a behavioral ngspice `.subckt`. The model is a hysteretic relaxation oscillator
+built from `B`-sources around one internal state node `q` (the SR latch): `Bq` drives a small
+state cap `Cq` up when TRIG < ⅓·VCC (set) and down when THRES > ⅔·VCC (reset), holding
+otherwise, with the current stopping at the rails so `q` never runs away; `Bout` buffers `q`
+to OUT (forced low while RESET is low); `Bdis` models the discharge transistor as ≈10 Ω from
+DISCH to ground while OUT is low. Thresholds come from CTRL when driven, else an internal
+⅔·VCC default (`Rctl` keeps an open CTRL well-defined). Eight pins (gnd/trig/out/reset/ctrl/
+thres/disch/vcc); no parameters — timing lives in the external R1/R2/C like real hardware.
+The behavioral nodes reference global `0`, matching the op-amp / 74xx parts.
+
+**Verification method (the crux of #87 and ADR-0021's deferral):** the 555's correctness could
+not be asserted against the synthetic MockBackend, and batch 6 deferred it for exactly that
+reason. This session established that **eecircuit-engine (the WASM ngspice backend) runs in
+node**, not only in-browser. The exact shipped `.subckt`, wired as the classic astable
+(R1=R2=10 kΩ VCC→DISCH→cap, C=10 nF on THRES=TRIG), was run on that real WASM engine: it
+**self-starts without `uic`**, OUT is a 0↔5 V square wave (28 zero-crossings of 2.5 V over
+3 ms), and the cap ramps within ⅓–⅔·VCC — a correct astable at f ≈ 1.44/((R1+2R2)·C) ≈ 4.8 kHz.
+This is genuine real-ngspice verification, the substance ADR-0021's "browser-WASM-verified"
+convention asks for.
+
+**Consequences:** The registry's *automated* tests stay at the ADR-0021 altitude — structural
+(8 canonical pins, behavioral `.subckt` present) + pipeline (compiles through netlist-compiler
+to an `XX1 … NE555` device card plus the `.subckt NE555 … .ends` block). The behavioral
+square-wave verification is done out-of-band on real WASM ngspice (documented above +
+engine-status.md) rather than added to the node suite, which by convention (ADR-0006) uses the
+deterministic MockBackend and never loads WASM — keeping the suite fast and deterministic.
+Registry part count 31 → 32. The NE555 also gets a `U` reference-designator prefix
+(`schematic-ops`) and an `ic` labeled-box symbol kind (`apps/web`), like the other ICs. No IR
+change. Unblocks the canonical astable-blinker demo. Supersedes the NE555 carve-out in ADR-0021.

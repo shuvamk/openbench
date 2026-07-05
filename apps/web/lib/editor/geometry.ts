@@ -63,6 +63,7 @@ const ID_KINDS: Record<string, SymbolKind> = {
   cmp_logic_7404: "ic",
   cmp_logic_7408: "ic",
   cmp_7segment_display: "ic",
+  cmp_timer_ne555: "ic",
 };
 
 export function getSymbolKind(component: Component): SymbolKind {

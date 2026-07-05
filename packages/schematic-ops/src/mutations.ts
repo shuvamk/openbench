@@ -46,6 +46,7 @@ const ID_PREFIXES: Record<string, string> = {
   cmp_logic_7404: "U",
   cmp_logic_7408: "U",
   cmp_7segment_display: "DS",
+  cmp_timer_ne555: "U",
 };
 
 export function refPrefix(component: Component): string {

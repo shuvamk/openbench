@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | IR core | `packages/ir-schema` | **wired** — all six kinds | pure TS (zod) |
 | Netlist compiler | `packages/netlist-compiler` | **wired** | pure TS |
-| Registry | `packages/registry` | **wired** — 31 curated parts | pure TS data |
+| Registry | `packages/registry` | **wired** — 32 curated parts | pure TS data |
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep/op, WASM+mock+native backends | WASM (`eecircuit-engine`) in-browser; native CLI feature-detected (rawfile parser, real-binary run pending) |
 | SPICE netlist | `packages/mcp-sim-ngspice` (`spice-netlist.ts`) | **partial** — flat deck ↔ netlist IR, round-trip via escape hatch | pure-TS `.cir`/`.net` parser + serializer |
@@ -34,7 +34,7 @@
 
 ## Registry (`packages/registry`)
 
-- Wired (issues #6, #17, #22; batch 3; ICs #44; current sources): 31 parts — passives, LED/RGB/diode/NPN,
+- Wired (issues #6, #17, #22; batch 3; ICs #44; current sources; NE555 #87): 32 parts — passives, LED/RGB/diode/NPN,
   DC/pulse/sine voltage sources, DC/sine current sources (`I{ref}` cards, symbol kind `isource`),
   interactive parts (pushbutton, switch, potentiometer, LDR) via `derivedParams`, and
   electromechanical visuals (DC motor, buzzer, lamp). Batch 3 adds the fundamentals that
@@ -53,9 +53,14 @@
   `cmp_7segment_display` (eight common-cathode segment LEDs on the shared DSEG model, `ic` symbol).
   The logic-gate models are correct by inspection; exact SPICE logic timing is browser-WASM-verified,
   not asserted against the synthetic MockBackend (ADR-0021 supersedes the earlier blanket deferral).
-  `cmp_timer_ne555` is intentionally NOT shipped here — a correct astable 555 needs an internal
-  comparator+latch and a discharge-switch that require live in-browser ngspice verification; tracked
-  as a follow-up issue rather than faked behind MockBackend.
+  `cmp_timer_ne555` (issue #87, ADR-0025) now ships: a behavioral `.subckt` — a hysteretic latch
+  (`Cq`/`Bq` around an internal state node `q`), an output buffer, and a ≈10 Ω discharge sink,
+  with the ⅓/⅔·VCC comparators taken from CTRL or its internal default. Its oscillation was
+  **verified on real WASM ngspice** (eecircuit-engine, run in node — see ADR-0025), not asserted
+  against the synthetic MockBackend: the classic astable (R1/R2/C) self-starts *without* `uic`,
+  OUT is a 0↔5 V square wave, the cap ramps within ⅓–⅔·VCC. The registry's automated tests cover
+  the structural (8 pins) + pipeline (X-card + `.subckt` block) contract only, per the ADR-0021
+  convention.
   Original core: `cmp_resistor_generic`, `cmp_capacitor_generic`, `cmp_led_generic`
   (DLED modelCard), `cmp_vsource_dc`, `cmp_ground` (no simModel — names the ground net;
   netlist compiler maps it to SPICE node 0), `cmp_esp32_devkit` (no simModel — emulated,
