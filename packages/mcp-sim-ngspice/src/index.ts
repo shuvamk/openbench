@@ -23,16 +23,26 @@ export {
   type AcDeckConfig,
   type DcSweepDeckConfig,
   type DeckConfig,
+  type OpDeckConfig,
   type TransientDeckConfig,
 } from "./deck";
 export { decodeSamples, encodeSamples, encodeTextAsDataUri } from "./samples";
 export {
   EECircuitBackend,
   MockBackend,
+  NativeNgspiceBackend,
   type BackendResult,
   type MockBackendOptions,
+  type NativeNgspiceAvailability,
+  type NativeNgspiceHooks,
   type SimBackend,
 } from "./backend";
+export {
+  parseRawfile,
+  serializeRawfile,
+  type RawPlot,
+  type RawVariable,
+} from "./rawfile";
 
 /** netIds to probe; defaults to every non-ground net (spiceNode !== "0"). */
 interface WithProbes {
@@ -63,7 +73,12 @@ export interface DcSweepRunConfig extends WithProbes {
   step: number;
 }
 
-export type RunConfig = TransientRunConfig | AcRunConfig | DcSweepRunConfig;
+/** Operating-point analysis (issue #30). One DC-bias sample per net, no axis. */
+export interface OpRunConfig extends WithProbes {
+  mode: "op";
+}
+
+export type RunConfig = TransientRunConfig | AcRunConfig | DcSweepRunConfig | OpRunConfig;
 
 export interface RunSimulationOptions {
   /** Injectable clock (ISO-8601) for deterministic provenance stamps. */
@@ -115,6 +130,8 @@ function deckConfigFor(config: RunConfig): { deck: DeckConfig; stored: Record<st
         },
         stored: { source: config.source, start: config.start, stop: config.stop, step: config.step },
       };
+    case "op":
+      return { deck: { mode: "op" }, stored: {} };
     case "transient":
     default:
       return {
@@ -145,6 +162,13 @@ function shapeSignals(
   };
 
   const out: WaveformSignal[] = [];
+  if (config.mode === "op") {
+    // Operating point: one V sample per net, no independent axis.
+    for (const { netId, probe } of probePairs) {
+      out.push({ netId, unit: "V", samples: encodeSamples(sampleFor(probe, result.signals, "samples")) });
+    }
+    return out;
+  }
   if (config.mode === "ac") {
     if (result.phase === undefined) {
       throw new Error(`backend "${backendName}" returned no phase data for an AC run`);
@@ -171,8 +195,8 @@ function shapeSignals(
 
 /**
  * Run a simulation of a netlist IR document against a backend and return a
- * `simulationRun` IR document. `config.mode` selects transient (#9), ac, or
- * dcSweep (#36). Never throws: any failure (bad config, unknown probe, backend
+ * `simulationRun` IR document. `config.mode` selects transient (#9), ac,
+ * dcSweep (#36), or op (#30). Never throws: any failure (bad config, unknown probe, backend
  * rejection) yields a `status: "failed"` run with the message inlined in `logs`
  * (engine-status checklist: structured failures, never raw engine throws).
  */
