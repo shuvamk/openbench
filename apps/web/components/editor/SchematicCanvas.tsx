@@ -172,7 +172,8 @@ export function SchematicCanvas() {
     // pin/instance handlers stopPropagation before this fires.
     const wantsPan =
       button === 1 ||
-      (button === 0 && (spaceHeldRef.current || live || !e.shiftKey) && tool === "select");
+      (button === 0 &&
+        (spaceHeldRef.current || live || (!e.shiftKey && tool === "select")));
     if (wantsPan && !(button === 0 && e.shiftKey)) {
       e.preventDefault();
       // A left-click on empty space (no space/live pan chord, no active wire)
