@@ -11,6 +11,7 @@
 | Registry | `packages/registry` | **wired** — 31 curated parts | pure TS data |
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli |
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep/op, WASM+mock+native backends | WASM (`eecircuit-engine`) in-browser; native CLI feature-detected (rawfile parser, real-binary run pending) |
+| SPICE netlist | `packages/mcp-sim-ngspice` (`spice-netlist.ts`) | **partial** — flat deck ↔ netlist IR, round-trip via escape hatch | pure-TS `.cir`/`.net` parser + serializer |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
 | QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader, no live emulator yet) | qemu-system-xtensa launch stub (ADR-0011); firmware-in-the-loop steps 1 (#64) & 2 (#65 GPIO->PWL) |
 
@@ -137,6 +138,36 @@
   results came from the mock backend — so synthetic waveforms are never mistaken for a
   real ngspice run.
 
+## SPICE netlist adapter (`packages/mcp-sim-ngspice/spice-netlist.ts`)
+
+- Partial (issue #41): a flat SPICE deck (`.cir`/`.net`) ↔ netlist IR adapter with the
+  standard `exportNetlist` / `importNetlist` / `validate` contract and a round-trip test.
+  - **export**: emits every `netlist.elements[].spiceCard` verbatim, in order (so
+    `.model` / `.subckt … .ends` blocks — which the compiler already stores as elements —
+    come out too), then `.end`. The full structured netlist (minus provenance) is embedded
+    once in a `* x_openbench_netlist <json>` comment (the KiCad `x_openbench_*` escape-hatch
+    pattern) so re-import is exact. Throws a structured `NgspiceAdapterError` on an invalid
+    netlist IR (export of an invalid doc is a programming error, like the KiCad adapter).
+  - **import**: reads the escape hatch when present (lossless). A foreign deck is parsed
+    heuristically — R/C/L/V/I/D/Q/M device cards → elements keyed by their ref (node arity
+    2/2/2/2/2/2/3/4), `.model` and `.subckt … .ends` blocks → elements, SPICE nodes
+    collected in first-seen order (`netId: net_<token>`). Line continuations (`+`) are
+    folded; inline `;`/`$` comments and the SPICE title line (line 1) are stripped. Never
+    throws: malformed input (device card with too few nodes, `.subckt` with no `.ends`) →
+    `{ ok: false, errors }`.
+  - **escape hatch for unsupported cards**: an element card whose device letter is not
+    recognized is preserved verbatim as an `x_openbench_raw_<n>` element and a warning is
+    emitted — parity with the KiCad adapter's foreign-file handling. Never dropped.
+- **Documented lossy fields** (round-trip modulo these):
+  1. `provenance` is regenerated on every import (`source: "mcp-sim-spice"`, `at` = import
+     time) — round-trip callers must normalize it (the contract test does).
+  2. **Foreign decks only** (no `x_openbench_netlist` escape hatch): `netId`s are synthesized
+     from bare SPICE node tokens (`net_<token>`), not the original names; `id`/`schematicId`
+     are FNV-1a fingerprints of the deck (`net_<hex>`/`sch_<hex>`); `derivedBy` becomes
+     `mcp-sim-spice-import@0.1.0`. Analysis/control directives (`.tran`, `.ac`, `.control`…)
+     are not netlist elements and are dropped on import. OpenBench-exported decks round-trip
+     exactly (modulo provenance) because the escape hatch carries the structured netlist.
+
 ## PlatformIO (`packages/mcp-firmware-platformio`)
 
 - Partial (issue #10): platformio.ini generation (esp32 family only), FirmwareBackend
@@ -180,7 +211,7 @@
 ## Production-readiness checklist per adapter
 
 - [x] import/export/validate implemented (kicad); library API equivalents (sim/firmware)
-- [x] round-trip contract test green with lossy fields documented (kicad)
+- [x] round-trip contract test green with lossy fields documented (kicad, spice-netlist #41)
 - [x] failure modes return structured errors (all adapters)
 - [x] provenance stamped on every produced document (all adapters)
 - [x] EECircuitBackend verified in a real browser session (2026-07-02)
