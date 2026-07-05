@@ -13,6 +13,7 @@ export {
   validateComponent,
   type Component,
   type ComponentParameter,
+  type Education,
   type Pin,
 } from "./component";
 export {

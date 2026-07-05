@@ -226,6 +226,149 @@ describe("simModel.derivedParams (issue #21 additive field)", () => {
   });
 });
 
+/**
+ * Issue #78 — optional `education` block (additive, patch-level 0.1.1). Read-only
+ * human teaching metadata per the spike #77 finding
+ * (.context/findings/spike-77-education-ir.md §1). Every sub-field is optional so
+ * partial authoring is valid; existing components (which omit it) stay valid.
+ * `keyFormula.display` is display-only text — never parsed/evaluated (contrast
+ * simModel.derivedParams).
+ */
+describe("education block (issue #78 additive field)", () => {
+  /** Fully-populated block, mirroring the resistor content in the spike finding §3. */
+  const wellFormedEducation = {
+    summary: "Limits how much current flows — the workhorse for protecting parts.",
+    gotchas: [
+      "Bigger resistance means less current, not more — it's the brake, not the gas.",
+      "Resistors have no polarity — either way round is fine.",
+    ],
+    keyFormula: {
+      display: "V = I × R   (Ohm's law)",
+      variables: {
+        V: "voltage dropped across the resistor",
+        I: "current through it",
+        R: "its resistance in ohms",
+      },
+    },
+    paramNotes: {
+      resistance: "Ohms. In a resistor+LED loop this sets the LED current directly.",
+    },
+    interactiveHint: {
+      targetParam: "resistance",
+      observe: "current",
+      prompt: "Sweep the resistance and watch the current respond — Ohm's law you can feel.",
+    },
+  };
+
+  const withEducation = (education: unknown) => {
+    const doc = clone();
+    doc.education = education;
+    return doc;
+  };
+
+  it("accepts a component WITH a well-formed education block", () => {
+    const result = validateComponent(withEducation(wellFormedEducation));
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts a component WITHOUT an education block (backward compatible)", () => {
+    const doc = clone();
+    expect(doc.education).toBeUndefined();
+    const result = validateComponent(doc);
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts a partial education block (every sub-field is optional)", () => {
+    const result = validateComponent(withEducation({ summary: "A one-way current valve." }));
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts an interactiveHint that addresses a series part via targetComponentId (the LED case)", () => {
+    const result = validateComponent(
+      withEducation({
+        interactiveHint: {
+          targetParam: "resistance",
+          targetComponentId: "cmp_resistor_generic",
+          observe: "brightness",
+          prompt: "Drag the series resistor down and watch the LED brighten.",
+        },
+      }),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("treats keyFormula.display as opaque display text (never parsed/evaluated)", () => {
+    const result = validateComponent(
+      withEducation({
+        keyFormula: { display: "τ = R × C; require('fs'); anything goes here", variables: {} },
+      }),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects a non-string summary with a structured {path,message}", () => {
+    const result = validateComponent(withEducation({ summary: 42 }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path === "education.summary")).toBe(true);
+  });
+
+  it("rejects gotchas that is not an array of strings", () => {
+    const result = validateComponent(withEducation({ gotchas: "polarity matters" }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path.startsWith("education.gotchas"))).toBe(true);
+  });
+
+  it("rejects a keyFormula missing its display string", () => {
+    const result = validateComponent(withEducation({ keyFormula: { variables: {} } }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path === "education.keyFormula.display")).toBe(true);
+  });
+
+  it("rejects keyFormula.variables values that are not strings", () => {
+    const result = validateComponent(
+      withEducation({ keyFormula: { display: "V = I × R", variables: { V: 5 } } }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path.startsWith("education.keyFormula.variables"))).toBe(true);
+  });
+
+  it("rejects paramNotes whose values are not strings", () => {
+    const result = validateComponent(withEducation({ paramNotes: { resistance: 12 } }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path.startsWith("education.paramNotes"))).toBe(true);
+  });
+
+  it("rejects an interactiveHint missing its required targetParam", () => {
+    const result = validateComponent(
+      withEducation({ interactiveHint: { observe: "current", prompt: "try it" } }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path === "education.interactiveHint.targetParam")).toBe(true);
+  });
+
+  it("rejects an interactiveHint missing its required observe series", () => {
+    const result = validateComponent(
+      withEducation({ interactiveHint: { targetParam: "resistance", prompt: "try it" } }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.path === "education.interactiveHint.observe")).toBe(true);
+  });
+
+  it("never throws on a wholly malformed education block, returns structured errors", () => {
+    let result: ReturnType<typeof validateComponent>;
+    expect(() => {
+      result = validateComponent(withEducation(42));
+    }).not.toThrow();
+    expect(result!.valid).toBe(false);
+    expect(result!.errors.some((e) => e.path === "education")).toBe(true);
+  });
+});
+
 /** Issue #21 — templates MAY span multiple lines (one SPICE card per line). */
 describe("multi-line simModel templates (issue #21)", () => {
   it("accepts a 3-card RGB-LED-style template with {ref}-suffixed device names", () => {

@@ -1,5 +1,5 @@
 /** Current IR version. Pre-1.0: a minor bump is a breaking change (spec §principles). */
-export const IR_VERSION = "0.1.0";
+export const IR_VERSION = "0.1.1";
 
 /**
  * A document is supported when its major.minor matches the current IR version —
