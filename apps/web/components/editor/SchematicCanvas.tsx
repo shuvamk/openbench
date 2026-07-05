@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Component, Net, Schematic } from "@openbench/ir-schema";
 import { getComponent } from "@openbench/registry";
 import {
+  computeJunctions,
   getInstancePlacement,
   getPinPosition,
   getSymbolGeometry,
@@ -577,21 +578,38 @@ function WireLayer({
           : hovered
             ? "var(--ob-wire-hover)"
             : "var(--ob-wire)";
+        const segments = netWireSegments(schematic, net);
+        const active = highlighted || hovered;
         return (
           <g key={net.netId} data-net-id={net.netId}>
-            {netWireSegments(schematic, net).map((points, index) => (
+            {segments.map((points, index) => (
               <polyline
                 key={index}
                 points={toPolylinePoints(points)}
                 fill="none"
                 stroke={stroke}
-                strokeWidth={highlighted || hovered ? 2.5 : 1.5}
+                strokeWidth={active ? 2.5 : 1.5}
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 style={probeArmed ? { cursor: "crosshair" } : undefined}
                 onPointerEnter={() => onHoverNet(net.netId)}
                 onPointerLeave={() => onHoverNet(null)}
                 onClick={(e) => onNetClick(net.netId, e)}
+              />
+            ))}
+            {computeJunctions(segments).map((point, index) => (
+              // Filled connectivity dot where >=3 wire ends of this net meet.
+              // Radius is in world units so it tracks the wire stroke as the
+              // canvas zooms; it uses the net's active-highlight color to match
+              // wire styling on select/hover.
+              <circle
+                key={`j${index}`}
+                data-junction-dot
+                cx={point.x}
+                cy={point.y}
+                r={active ? 4 : 3}
+                fill={stroke}
+                pointerEvents="none"
               />
             ))}
           </g>

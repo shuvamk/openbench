@@ -2,6 +2,8 @@ import type { Component, Schematic } from "@openbench/ir-schema";
 import { refPrefix, type Point } from "./mutations";
 import { clampZoom, MAX_ZOOM } from "./store";
 
+export type { Point };
+
 /**
  * Symbol geometry shared by the canvas renderer and wire routing. All pin
  * offsets are in world units relative to the instance origin (the symbol
@@ -338,4 +340,36 @@ export function fitToContent(components: ComponentBounds[], viewport: Viewport):
   };
 
   return { zoom, pan };
+}
+
+/**
+ * Junction dots (issue #129): given one net's wire segments (each an orthogonal
+ * polyline of >=2 points), return the coordinates where three or more segment
+ * endpoints coincide. Only true endpoints (first + last point of a segment)
+ * count — intermediate bend vertices never form a junction. A coordinate shared
+ * by exactly two endpoints is a routed corner, not a junction, so it is
+ * excluded. Because the input is a single net's segments, crossovers between
+ * different nets can never produce a junction (they are evaluated separately).
+ */
+export function computeJunctions(segments: Point[][]): Point[] {
+  const counts = new Map<string, { point: Point; count: number }>();
+  for (const segment of segments) {
+    const first = segment[0];
+    const last = segment[segment.length - 1];
+    for (const endpoint of [first, last]) {
+      if (!endpoint) continue;
+      const key = `${endpoint.x},${endpoint.y}`;
+      const entry = counts.get(key);
+      if (entry) {
+        entry.count += 1;
+      } else {
+        counts.set(key, { point: { x: endpoint.x, y: endpoint.y }, count: 1 });
+      }
+    }
+  }
+  const junctions: Point[] = [];
+  for (const { point, count } of counts.values()) {
+    if (count >= 3) junctions.push(point);
+  }
+  return junctions;
 }
