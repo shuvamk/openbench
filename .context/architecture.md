@@ -153,6 +153,14 @@ Status of each: [engine-status.md](engine-status.md).
   are an RFC-4180 round-trip pair. `components/editor/BomPanel.tsx` renders it with an
   Astryx `Table` + CSV export; `BomButton.tsx` opens it from the top bar in a Dialog.
   Component resolution is injected (default `getComponent`), mirroring the ERC adapter.
+- Stateless sharing + embed (issue #40, ADR-0025): `apps/web/lib/share.ts` serializes a
+  bundle to a gzip-compressed, URL-safe base64 payload (`CompressionStream` + base64url).
+  `encodeShare` returns a structured `too_large` error past `SHARE_URL_LIMIT` (never
+  throws); `decodeShare` inverts it. The editor store gains a `readOnly` flag +
+  `loadShared(bundle)` — every IR commit is a no-op while read-only. `/embed/<payload>`
+  (`components/embed/EmbedSimulator.tsx`) hydrates a read-only project with minimal chrome
+  (name + Run + canvas) for iframes; `components/editor/ShareButton.tsx` copies the link.
+  Purely client-side — no server, DB, or account (ADR-0008). NOT multiplayer/CRDT.
 
 ### 5. Desktop shell — `apps/desktop`
 - Electron shell that wraps the `apps/web` UI, first slice of the desktop pivot

@@ -84,6 +84,11 @@ export interface EditorState {
   dirty: boolean;
   loading: boolean;
   loadError?: string;
+  /**
+   * True when the bundle was hydrated from a stateless share payload (issue #40).
+   * Every IR mutation becomes a no-op — the embed/share view is view-only.
+   */
+  readOnly: boolean;
   zoom: number;
   pan: Point;
   /** Undo/redo stacks of schematic snapshots, newest last / next first. */
@@ -91,6 +96,8 @@ export interface EditorState {
   future: SchematicDoc[];
 
   loadProject(projectId: string): Promise<void>;
+  /** Hydrate a read-only bundle decoded from a share/embed payload (issue #40). */
+  loadShared(bundle: ProjectBundle): void;
   place(component: Component, position: Point): void;
   move(instanceId: string, position: Point): void;
   rotateSelection(): void;
@@ -139,6 +146,7 @@ const initialState = {
   dirty: false,
   loading: false,
   loadError: undefined,
+  readOnly: false,
   zoom: 1,
   pan: { x: 0, y: 0 },
   past: [] as SchematicDoc[],
@@ -174,6 +182,7 @@ function sanitizeSelection(selection: string[], schematic: SchematicDoc): string
 export const useEditorStore = create<EditorState>((set, get) => {
   /** Apply an IR mutation, mark dirty, and (re)arm the autosave debounce. */
   function commitBundle(bundle: ProjectBundle): void {
+    if (get().readOnly) return;
     set({ bundle, dirty: true });
     clearSaveTimer();
     saveTimer = setTimeout(() => {
@@ -199,6 +208,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
   /** History-aware commit: no-op schematics don't dirty the store or the stack. */
   function commitSchematic(schematic: SchematicDoc): void {
+    if (get().readOnly) return;
     const bundle = get().bundle;
     if (!bundle || schematic === bundle.schematic) return;
     recordHistory(bundle.schematic);
@@ -227,6 +237,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
           loadError: error instanceof Error ? error.message : String(error),
         });
       }
+    },
+
+    loadShared(bundle) {
+      resetGesture();
+      clearSaveTimer();
+      set({ ...initialState, bundle, readOnly: true, loading: false });
     },
 
     place(component, position) {
