@@ -1,13 +1,52 @@
 import { describe, expect, it } from "vitest";
-import { validateProject, validateSchematic } from "@openbench/ir-schema";
+import type { SimulationRun } from "@openbench/ir-schema";
+import { IR_VERSION, validateProject, validateSchematic } from "@openbench/ir-schema";
 import { compileNetlist } from "@openbench/netlist-compiler";
+import { buildSpiceDeck, encodeSamples } from "@openbench/mcp-sim-ngspice";
 import { getComponent } from "@openbench/registry";
+import { deriveInstanceStates } from "../lib/live/derive";
 import {
   createFromTemplate,
   duplicateBundle,
   TEMPLATE_OPTIONS,
   type TemplateKind,
 } from "../lib/templates";
+
+/**
+ * Build a completed transient run holding each given net at a constant voltage,
+ * mirroring what a real solve would report at the nodes. Lets a template test
+ * feed known node voltages straight into `deriveInstanceStates`.
+ */
+const N_SAMPLES = 8;
+const constant = (value: number) =>
+  encodeSamples(new Float64Array(N_SAMPLES).fill(value));
+function makeCompletedRun(
+  signals: Array<{ netId: string; samples: string }>,
+): SimulationRun {
+  return {
+    irVersion: IR_VERSION,
+    kind: "simulationRun",
+    id: "sim_template_fixture",
+    netlistId: "net_template_fixture",
+    engine: "ngspice",
+    mode: "transient",
+    status: "completed",
+    results: {
+      format: "waveform-v1",
+      signals: [
+        {
+          netId: "time",
+          unit: "s",
+          samples: encodeSamples(
+            new Float64Array(N_SAMPLES).map((_, i) => i * 1e-3),
+          ),
+        },
+        ...signals.map((s) => ({ ...s, unit: "V" })),
+      ],
+    },
+    provenance: { source: "test", at: "2026-07-05T00:00:00Z" },
+  };
+}
 
 describe("createFromTemplate", () => {
   it("creates a valid blank project bundle", () => {
@@ -404,6 +443,90 @@ describe("createFromTemplate", () => {
       }
     });
   });
+
+  describe("basic-led", () => {
+    const bundle = createFromTemplate("basic-led", "Basic LED");
+    const nets = bundle.schematic.nets;
+    const find = (instanceId: string, pinId: string) =>
+      nets.find((n) =>
+        n.connections.some(
+          (c) => c.instanceId === instanceId && c.pinId === pinId,
+        ),
+      );
+
+    it("is a valid schematic: DC source, current-limiting resistor, LED and ground", () => {
+      expect(validateProject(bundle.project)).toEqual({ valid: true, errors: [] });
+      expect(validateSchematic(bundle.schematic)).toEqual({ valid: true, errors: [] });
+
+      const byId = new Map(
+        bundle.schematic.instances.map((i) => [i.instanceId, i]),
+      );
+      expect(byId.get("V1")?.componentId).toBe("cmp_vsource_dc");
+      expect(byId.get("R1")?.componentId).toBe("cmp_resistor_generic");
+      expect(byId.get("R1")?.parameterOverrides?.resistance).toBe(330);
+      expect(byId.get("D1")?.componentId).toBe("cmp_led_generic");
+      expect(
+        bundle.schematic.instances.some((i) => i.componentId === "cmp_ground"),
+      ).toBe(true);
+    });
+
+    it("wires 5V -> R1 -> LED anode, cathode returning to source- / GND", () => {
+      // source drives the resistor, which limits current into the LED anode
+      expect(find("V1", "pos")).toBe(find("R1", "p1"));
+      expect(find("R1", "p2")).toBe(find("D1", "anode"));
+      // the cathode returns to the source's negative terminal
+      expect(find("D1", "cathode")).toBe(find("V1", "neg"));
+      // and the ground symbol sits on that return net
+      const gndInstance = bundle.schematic.instances.find(
+        (i) => i.componentId === "cmp_ground",
+      );
+      expect(gndInstance).toBeDefined();
+      expect(find(gndInstance!.instanceId, "gnd")).toBe(find("V1", "neg"));
+    });
+
+    it("has grid-snapped layout positions for every instance", () => {
+      const layout = bundle.schematic.layout;
+      expect(layout).toBeDefined();
+      for (const instance of bundle.schematic.instances) {
+        const pos = layout?.instances[instance.instanceId];
+        expect(pos, `layout for ${instance.instanceId}`).toBeDefined();
+        expect(pos!.x % 20, `${instance.instanceId}.x on grid`).toBe(0);
+        expect(pos!.y % 20, `${instance.instanceId}.y on grid`).toBe(0);
+      }
+    });
+
+    it("compiles and builds a SPICE deck carrying the LED's .model card", () => {
+      const result = compileNetlist(bundle.schematic, getComponent);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const cards = result.netlist.elements.map((e) => e.spiceCard);
+      expect(cards.some((c) => c.startsWith("VV1 ") && c.includes("DC 5"))).toBe(true);
+      expect(cards.some((c) => c.startsWith("RR1 ") && c.includes("330"))).toBe(true);
+      expect(cards.some((c) => c.startsWith("DD1 "))).toBe(true);
+      expect(result.netlist.nodes.some((n) => n.spiceNode === "0")).toBe(true);
+
+      // the full deck the sim engine would run carries the LED model card
+      const deck = buildSpiceDeck(result.netlist, { duration: "10ms", step: "10us" });
+      expect(deck).toContain(".model DLED");
+    });
+
+    it("lights the LED: deriveInstanceStates yields a brightness series > 0", () => {
+      // hold the LED anode at its ~1.45V forward voltage (cathode is grounded)
+      const anodeNet = find("D1", "anode");
+      expect(anodeNet).toBeDefined();
+      const run = makeCompletedRun([
+        { netId: anodeNet!.netId, samples: constant(1.45) },
+      ]);
+      const result = deriveInstanceStates(bundle.schematic, getComponent, run);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const led = result.states.get("D1")!;
+      expect(led.kind).toBe("led");
+      expect(led.series.brightness).toBeDefined();
+      expect(led.series.brightness!.length).toBeGreaterThan(0);
+      expect(led.series.brightness!.every((b) => b > 0)).toBe(true);
+    });
+  });
 });
 
 describe("TEMPLATE_OPTIONS", () => {
@@ -430,6 +553,7 @@ describe("TEMPLATE_OPTIONS", () => {
       "playground",
       "half-wave-rectifier",
       "rlc-ringing",
+      "basic-led",
     ];
     const optionValues = TEMPLATE_OPTIONS.map((o) => o.value).sort();
     expect(optionValues).toEqual([...kinds].sort());
