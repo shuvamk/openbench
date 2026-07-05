@@ -32,6 +32,7 @@ function fakeReader(samples: { out: number; out1?: number; enable: number; enabl
   const reader: MemoryReader = {
     async readWord(address: number): Promise<number> {
       const s = samples[Math.min(i, samples.length - 1)];
+      if (s === undefined) throw new Error("no sample");
       switch (address) {
         case GPIO_OUT_REG:
           return s.out;
@@ -133,7 +134,7 @@ describe("pollGpio run loop", () => {
     const reader: MemoryReader = {
       async readWord(address: number): Promise<number> {
         if (address === GPIO_ENABLE_REG) return en;
-        if (address === GPIO_OUT_REG) return outs[Math.min(idx, outs.length - 1)];
+        if (address === GPIO_OUT_REG) return outs[Math.min(idx, outs.length - 1)] ?? 0;
         return 0;
       },
     };
