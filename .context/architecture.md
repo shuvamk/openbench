@@ -71,6 +71,26 @@ other directly — every hand-off is an IR document.
   from this package; the zustand store still wraps these with dirty-tracking + debounced
   persistence.
 
+### 2.7 Teaching layer — `packages/lesson`
+- Pure, engine-free package for teaching mode (issue #89, ADR-0022): exports the
+  `Lesson`/`Step`/`SchematicPredicate` types and `evaluateStep(step, schematic,
+  resolveComponent, erc?) → StepResult`. A **lesson is a product document, not an IR
+  kind** — it wraps a `targetBundle: ProjectBundle` + `steps`, carries pedagogy fields no
+  engine consumes, and uses a `les_` id prefix deliberately *outside* the IR discriminated
+  union.
+- A `SchematicPredicate` is an `all`/`any`/`not` tree of `component` (role-bound instance
+  with `where` param constraints + `count`) and `connected` (pins share one net) clauses.
+  `evaluateStep` is an **existential, subset, monotone** match: it backtracks over
+  injective role→instance bindings (roles referenced only in `connected` clauses are free
+  existentials), never throws (an unresolved component just fails to bind), and returns
+  per-top-level-clause `satisfied` flags for incremental progress. Component resolution is
+  injected, mirroring `packages/erc` and the netlist compiler.
+- ERC (`packages/erc`) is an **advisory feed only**: violations touching a step's bound
+  instances/nets surface as templated `warnings` that never gate `passed` (§3.4). Depends
+  on `@openbench/ir-schema` + `@openbench/erc`; imported by the future authoring UI and
+  student runner. Follow-ups: authoring-by-recording (#90), student runner (#91), share +
+  AI seam (#92).
+
 ### 3. Engine adapters — `packages/mcp-*`
 Each adapter is an MCP server exposing the standard tool contract
 (`import`, `export`, `validate`) plus engine-specific tools (e.g. `runSimulation`).

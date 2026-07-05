@@ -44,4 +44,5 @@ export {
   type FirmwareTarget,
 } from "./firmware-target";
 export { projectSchema, validateProject, type Project } from "./project";
+export type { ProjectBundle } from "./bundle";
 export { irDocumentSchema, validateDocument, type IrDocument } from "./document";
