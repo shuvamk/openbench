@@ -8,12 +8,29 @@
 # @openbench/schematic-ops). This preflight detects that and runs `npm install`
 # ONCE; when every workspace package already resolves it is a fast no-op.
 #
-# Usage: ensure-workspace-deps.sh [worktree-dir]     (defaults to CWD)
-# Exit:  0 deps OK (installed if needed) · 1 install failed · 2 misuse.
+# Two modes:
+#   (default)  auto-fix — run `npm install` once when a package is missing.
+#   --check    guard    — assert every package is linked; on a miss, exit
+#                         non-zero with an actionable message and DO NOT install
+#                         (never mutates the tree). Use as a fast pretest guard
+#                         (issue #128).
+#
+# Usage: ensure-workspace-deps.sh [--check] [worktree-dir]   (dir defaults to CWD)
+# Exit:  0 deps OK · 1 install failed (default) / packages missing (--check)
+#        · 2 misuse.
 
 set -euo pipefail
 
-WT="${1:-$PWD}"
+CHECK_ONLY=0
+WT=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --check) CHECK_ONLY=1; shift;;
+    -*) echo "ensure-workspace-deps: unknown flag: $1" >&2; exit 2;;
+    *) WT="$1"; shift;;
+  esac
+done
+[[ -n "$WT" ]] || WT="$PWD"
 
 if [[ ! -f "$WT/package.json" ]]; then
   echo "ensure-workspace-deps: no package.json at '$WT'" >&2
@@ -57,10 +74,17 @@ if [[ ${#missing[@]} -eq 0 ]]; then
   exit 0
 fi
 
-echo "ensure-workspace-deps: ${#missing[@]} of ${#NAMES[@]} workspace package(s) missing from node_modules:"
+echo "ensure-workspace-deps: ${#missing[@]} of ${#NAMES[@]} workspace package(s) missing from node_modules:" >&2
 for name in "${missing[@]}"; do
-  echo "  - $name"
+  echo "  - $name" >&2
 done
+
+if [[ "$CHECK_ONLY" -eq 1 ]]; then
+  # Guard mode (issue #128): fail loudly, don't mutate the tree.
+  echo "ensure-workspace-deps: stale node_modules — run 'npm install' at '$WT' before tests" >&2
+  exit 1
+fi
+
 echo "ensure-workspace-deps: running 'npm install' at '$WT' (stale symlink refresh) ..."
 ( cd "$WT" && npm install ) || {
   echo "ensure-workspace-deps: npm install failed" >&2

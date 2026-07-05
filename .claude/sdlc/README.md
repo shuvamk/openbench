@@ -20,14 +20,19 @@ they don't invent new ones.
 - `state/last-pick.json` — last picked issue (for debugging). gitignored.
 - `known-failing-tests.json` — tests known-red on `origin/main`, so a worker
   doesn't burn tool calls re-diagnosing a pre-existing failure.
-- `../scripts/sdlc/ensure-workspace-deps.sh <worktree>` — deps preflight. A
-  fresh worktree whose `node_modules` is symlinked from the main checkout goes
-  stale the moment a new `@openbench/*` workspace package lands, so its imports
-  fail to resolve and a green change looks red (issue #113; the concrete case
-  was #93). Run it before tests / before diagnosing any "cannot find module
-  @openbench/*" failure — it `npm install`s only when a workspace package is
-  missing and is a fast no-op otherwise. Covered by
-  `ensure-workspace-deps.test.sh` (npm stubbed on PATH).
+- `../scripts/sdlc/ensure-workspace-deps.sh [--check] <worktree>` — deps
+  preflight. A fresh worktree whose `node_modules` is symlinked from the main
+  checkout goes stale the moment a new `@openbench/*` workspace package lands, so
+  its imports fail to resolve and a green change looks red (issue #113; the
+  concrete case was #93). Two modes:
+  - **default (auto-fix)** — `npm install`s once only when a workspace package is
+    missing; a fast no-op otherwise. Run it before tests / before diagnosing any
+    "cannot find module @openbench/*" failure.
+  - **`--check` (guard, issue #128)** — asserts every workspace package is linked
+    and, on a miss, exits non-zero with an actionable "run npm install" message
+    **without** mutating the tree; exits 0 silently when all resolve. Use as a
+    cheap pretest guard where you'd rather fail loudly than auto-install.
+  Covered by `ensure-workspace-deps.test.sh` (npm stubbed on PATH).
 
 ## How the pipeline works
 
