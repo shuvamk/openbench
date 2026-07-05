@@ -168,8 +168,14 @@
   poller runs off an injected `MemoryReader`); `gpioEventsToPwl` output is not yet spliced
   into a compiled netlist deck (wiring the source cards into the ngspice run is a
   follow-up); no real `pio run` exercised in CI; no end-to-end flash-to-emulator execution
-  yet. MCP `server.ts` wrappers landed for all three adapters (issue #20); bin
-  distribution needs a TS build step (packaging follow-up).
+  yet. MCP `server.ts` wrappers landed for all three adapters (issue #20) and now ship
+  **publishable stdio bins** (issue #31): each package has an esbuild `build.mjs`
+  (`npm run build -w packages/<pkg>`) that bundles `src/server-cli.ts` → `dist/server-cli.js`
+  (a real `StdioServerTransport` entry), keeping the MCP SDK/zod/eecircuit-engine external
+  and inlining the `@openbench/*` workspace TS so the bin runs under plain node. `bin` now
+  points at `dist/`; `files` ships `dist` + `src`; `exports`/`main` stay at `src` for the
+  browser dual-env (ADR-0006). A smoke test per package spawns the built bin and asserts it
+  lists its tools over stdio via an in-process MCP client.
 
 ## Production-readiness checklist per adapter
 

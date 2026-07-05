@@ -8,12 +8,19 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "node build.mjs"
+  },
   "dependencies": {
     "@openbench/ir-schema": "*",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^3.24.0"
   },
   "bin": {
-    "openbench-mcp-kicad": "./src/server-cli.mjs"
+    "openbench-mcp-kicad": "./dist/server-cli.js"
   }
 }
