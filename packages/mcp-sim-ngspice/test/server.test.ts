@@ -7,7 +7,7 @@ import type { SimulationRun } from "@openbench/ir-schema";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildCli, distEntry } from "../build.mjs";
 import { buildServer, handlers } from "../src/server";
-import { rcNetlist } from "./fixture";
+import { rcNetlist, dividerNetlist } from "./fixture";
 
 const pkgDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -104,6 +104,77 @@ describe("mcp-sim-ngspice handlers (delegation)", () => {
     );
     expect(payload.ok).toBe(false);
     expect(Array.isArray(payload.errors)).toBe(true);
+  });
+
+  it("run_simulation mode:'ac' returns dB/deg signals over a frequency axis (issue #84)", async () => {
+    const payload = parsePayload(
+      await handlers.run_simulation({
+        netlist,
+        mode: "ac",
+        sweep: "dec",
+        points: 10,
+        fStart: "1",
+        fStop: "1meg",
+        probes: ["net_vout"],
+      }),
+    );
+    const run = payload as unknown as SimulationRun;
+    expect(run.status).toBe("completed");
+    expect(run.mode).toBe("ac");
+    const byUnit = (unit: string) => run.results!.signals.filter((s) => s.unit === unit);
+    expect(byUnit("dB").map((s) => s.netId)).toContain("net_vout");
+    expect(byUnit("deg").map((s) => s.netId)).toContain("net_vout");
+    expect(run.results!.signals.some((s) => s.netId === "frequency" && s.unit === "Hz")).toBe(true);
+    expect(run.results!.signals.some((s) => s.netId === "time")).toBe(false);
+  });
+
+  it("run_simulation mode:'dcSweep' x-axis is the swept source, not time (issue #84)", async () => {
+    const payload = parsePayload(
+      await handlers.run_simulation({
+        netlist: dividerNetlist as unknown as Record<string, unknown>,
+        mode: "dcSweep",
+        source: "V1",
+        start: 0,
+        stop: 5,
+        step: 0.1,
+        probes: ["net_vout"],
+      }),
+    );
+    const run = payload as unknown as SimulationRun;
+    expect(run.status).toBe("completed");
+    expect(run.mode).toBe("dcSweep");
+    const ids = run.results!.signals.map((s) => s.netId);
+    expect(ids).toContain("V1");
+    expect(ids).not.toContain("time");
+  });
+
+  it("run_simulation bad ac config yields status:'failed', never a thrown tool error (issue #84)", async () => {
+    let payload!: Record<string, unknown>;
+    await expect(
+      (async () => {
+        payload = parsePayload(
+          await handlers.run_simulation({
+            netlist,
+            mode: "ac",
+            sweep: "dec",
+            points: 10,
+            fStart: "1meg",
+            fStop: "1", // fStop <= fStart → invalid
+          }),
+        );
+      })(),
+    ).resolves.not.toThrow();
+    const run = payload as unknown as SimulationRun;
+    expect(run.status).toBe("failed");
+  });
+
+  it("run_simulation defaults to transient when mode is omitted", async () => {
+    const payload = parsePayload(
+      await handlers.run_simulation({ netlist, duration: "10ms", step: "1us", probes: ["net_vout"] }),
+    );
+    const run = payload as unknown as SimulationRun;
+    expect(run.mode).toBe("transient");
+    expect(run.results!.signals.map((s) => s.netId)).toEqual(["net_vout", "time"]);
   });
 
   it("validate delegates to the canonical IR validator", async () => {

@@ -19,7 +19,7 @@ import { validateNetlist, type Netlist } from "@openbench/ir-schema";
 import { z } from "zod";
 import { MockBackend } from "./backend";
 import { buildSpiceDeck, NgspiceAdapterError } from "./deck";
-import { runSimulation } from "./index";
+import { runSimulation, type RunConfig } from "./index";
 
 const SERVER_NAME = "openbench-mcp-sim-ngspice";
 const SERVER_VERSION = "0.1.0";
@@ -36,6 +36,57 @@ const structuredFailure = (error: unknown): CallToolResult =>
         ? error.errors
         : [{ path: "", message: error instanceof Error ? error.message : String(error) }],
   });
+
+/**
+ * Assemble a {@link RunConfig} from the flat MCP tool arguments, dispatching on
+ * `mode`. Missing/wrong-typed mode fields are passed through unchanged — the
+ * deck builders inside `runSimulation` validate them and surface a
+ * `status:"failed"` run (the tool contract never throws), so this stays a pure
+ * shape-mapping with no validation of its own.
+ */
+function buildRunConfig(args: {
+  mode: "transient" | "ac" | "dcSweep";
+  duration?: string;
+  step?: string | number;
+  sweep?: "dec" | "oct" | "lin";
+  points?: number;
+  fStart?: string;
+  fStop?: string;
+  source?: string;
+  start?: number;
+  stop?: number;
+  withProbes: { probes?: string[] };
+}): RunConfig {
+  const { mode, withProbes } = args;
+  switch (mode) {
+    case "ac":
+      return {
+        mode: "ac",
+        sweep: args.sweep,
+        points: args.points,
+        fStart: args.fStart,
+        fStop: args.fStop,
+        ...withProbes,
+      } as RunConfig;
+    case "dcSweep":
+      return {
+        mode: "dcSweep",
+        source: args.source,
+        start: args.start,
+        stop: args.stop,
+        step: args.step,
+        ...withProbes,
+      } as RunConfig;
+    case "transient":
+    default:
+      return {
+        mode: "transient",
+        duration: args.duration,
+        step: args.step,
+        ...withProbes,
+      } as RunConfig;
+  }
+}
 
 export const handlers = {
   build_deck: async ({
@@ -60,23 +111,50 @@ export const handlers = {
 
   run_simulation: async ({
     netlist,
+    mode = "transient",
     duration,
     step,
+    sweep,
+    points,
+    fStart,
+    fStop,
+    source,
+    start,
+    stop,
     probes,
   }: {
     netlist: Record<string, unknown>;
-    duration: string;
-    step: string;
+    mode?: "transient" | "ac" | "dcSweep";
+    duration?: string;
+    // `step` is a SPICE time value ("1us") for transient, a numeric increment for dcSweep.
+    step?: string | number;
+    sweep?: "dec" | "oct" | "lin";
+    points?: number;
+    fStart?: string;
+    fStop?: string;
+    source?: string;
+    start?: number;
+    stop?: number;
     probes?: string[];
   }): Promise<CallToolResult> => {
     const validation = validateNetlist(netlist);
     if (!validation.valid) return jsonResult({ ok: false, errors: validation.errors });
+    const withProbes = probes !== undefined ? { probes } : {};
+    const config = buildRunConfig({
+      mode,
+      duration,
+      step,
+      sweep,
+      points,
+      fStart,
+      fStop,
+      source,
+      start,
+      stop,
+      withProbes,
+    });
     // runSimulation never throws: bad configs/probes yield status:"failed".
-    const run = await runSimulation(
-      netlist as unknown as Netlist,
-      { mode: "transient", duration, step, ...(probes !== undefined ? { probes } : {}) },
-      new MockBackend(),
-    );
+    const run = await runSimulation(netlist as unknown as Netlist, config, new MockBackend());
     return jsonResult(run);
   },
 
@@ -107,14 +185,42 @@ export function buildServer(): McpServer {
     "run_simulation",
     {
       description:
-        "Run a transient simulation of a netlist IR document and return a simulationRun IR " +
-        "document (failures surface as status \"failed\", never a throw). Server-side this " +
-        "uses the deterministic mock backend — the real WASM ngspice backend " +
-        "(eecircuit-engine) runs in-browser only.",
+        "Run a simulation of a netlist IR document and return a simulationRun IR document " +
+        "(failures surface as status \"failed\", never a throw). `mode` selects the analysis: " +
+        "\"transient\" (default; .tran, needs duration/step), \"ac\" (.ac Bode; needs " +
+        "sweep/points/fStart/fStop; signals carry dB + deg over a frequency/Hz axis), or " +
+        "\"dcSweep\" (.dc transfer; needs source/start/stop/step; the x-axis is the swept " +
+        "source, not time). Server-side this uses the deterministic mock backend — the real " +
+        "WASM ngspice backend (eecircuit-engine) runs in-browser only.",
       inputSchema: {
         netlist: z.record(z.unknown()).describe("A netlist IR document (kind: netlist)"),
-        duration: z.string().describe('Total simulated time as a SPICE time value, e.g. "10ms"'),
-        step: z.string().describe('Output step as a SPICE time value, e.g. "1us"'),
+        mode: z
+          .enum(["transient", "ac", "dcSweep"])
+          .optional()
+          .describe("Analysis mode; defaults to \"transient\""),
+        duration: z
+          .string()
+          .optional()
+          .describe('transient: total simulated time as a SPICE time value, e.g. "10ms"'),
+        step: z
+          .union([z.string(), z.number()])
+          .optional()
+          .describe(
+            'transient: output step as a SPICE time value ("1us"); dcSweep: numeric source increment',
+          ),
+        sweep: z
+          .enum(["dec", "oct", "lin"])
+          .optional()
+          .describe("ac: points spacing — per-decade, per-octave, or linear count"),
+        points: z.number().optional().describe("ac: points per decade/octave, or total linear points"),
+        fStart: z
+          .string()
+          .optional()
+          .describe('ac: start frequency as a SPICE value, e.g. "1", "10k"'),
+        fStop: z.string().optional().describe('ac: stop frequency as a SPICE value, e.g. "1meg"'),
+        source: z.string().optional().describe('dcSweep: independent source to sweep, e.g. "V1"'),
+        start: z.number().optional().describe("dcSweep: sweep start value"),
+        stop: z.number().optional().describe("dcSweep: sweep stop value"),
         probes: z
           .array(z.string())
           .optional()

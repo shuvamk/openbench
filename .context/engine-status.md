@@ -107,8 +107,11 @@
   → structured `NgspiceAdapterError` → `status:"failed"`, never a throw.
   MockBackend AC is a synthetic single-pole low-pass whose corner is the deck's
   first R·C (1k·1u ⇒ −3 dB ≈ 159 Hz); MockBackend dcSweep is a synthetic linear
-  transfer (first probe slope 0.5). The MCP server tool surface is still
-  transient-only — exposing ac/dcSweep as MCP tools is a follow-up.
+  transfer (first probe slope 0.5). The MCP `run_simulation` tool now exposes all three
+  analyses (issue #84): a `mode` arg (`transient`|`ac`|`dcSweep`) dispatches to the matching
+  `RunConfig`; ac returns dB/deg over a frequency axis, dcSweep's x-axis is the swept source.
+  Bad config still yields `status:"failed"`, never a thrown tool error. (`op` mode is not yet
+  on the MCP surface — see the native-backend note below.)
 - Operating point + native CLI backend (issue #30): a fourth mode `op` emits a bare
   `.op` card (no `.tran`) and shapes results as one V sample per net with **no
   independent axis** (no `time`/`frequency` signal). `NativeNgspiceBackend` sits behind
@@ -120,8 +123,9 @@
   `status:"failed"` (`engine-unavailable`). `locate`/`execute` hooks are injectable, so the
   backend and the `parseRawfile`/`serializeRawfile` round-trip are unit-tested with **zero
   ngspice binary** on the runner (fixture `test/fixtures/rc-op.raw`). MockBackend gained an
-  `op` branch (one synthetic DC-bias sample per probe). The MCP server tool surface is still
-  transient-only — exposing ac/dcSweep/op and wiring the native backend as MCP tools is a follow-up.
+  `op` branch (one synthetic DC-bias sample per probe). The MCP `run_simulation` tool now
+  covers transient/ac/dcSweep (issue #84); exposing `op` and wiring the native backend as
+  MCP tools is the remaining follow-up.
 - Verified 2026-07-02: EECircuitBackend ran a real transient in a browser session (RC low-pass demo, deck `.tran 10us 10ms`, physically-correct DC steady-state waveforms, zero console errors). Gaps: the native ngspice CLI
   backend's real spawn+run path (default `locate`/`execute`) is exercised only with
   injected hooks in tests — a run against a real installed `ngspice` binary is still
