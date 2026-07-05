@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
@@ -15,6 +16,7 @@ import {
   type RunnerStep,
   type RunnerStepStatus,
 } from "../../lib/lesson/runner";
+import { autoPlaceStep, stepAllowsAutoPlace } from "../../lib/lesson/autoplace";
 
 /**
  * Teaching-mode student runner (issue #91), per .context/design/teaching-mode.md
@@ -77,7 +79,16 @@ export function StudentRunnerPanel({
   onComplete,
 }: StudentRunnerPanelProps) {
   const schematic = useEditorStore((s) => s.bundle?.schematic);
+  const applySchematic = useEditorStore((s) => s.applySchematic);
   const debounced = useDebouncedValue(schematic, debounceMs);
+
+  // "Do it for me" (issue #153): apply the minimal target-derived mutation that
+  // satisfies the active step, straight through the editor's history-aware commit.
+  function handleAutoPlace(step: RunnerStep["step"]): void {
+    const live = useEditorStore.getState().bundle?.schematic;
+    if (!live) return;
+    applySchematic(autoPlaceStep(lesson, step, live, resolveComponent));
+  }
 
   const view = useMemo(
     () => deriveRunnerView(lesson, debounced ?? emptySchematic(), resolveComponent, erc),
@@ -119,7 +130,7 @@ export function StudentRunnerPanel({
       </VStack>
 
       {view.active ? (
-        <ActiveStepDetail step={view.active} />
+        <ActiveStepDetail step={view.active} onAutoPlace={handleAutoPlace} />
       ) : (
         <Text type="body" color="accent" data-lesson-done="">
           ✓ Lesson complete — nice work!
@@ -162,9 +173,16 @@ function StepRow({ step, index }: { step: RunnerStep; index: number }) {
   );
 }
 
-function ActiveStepDetail({ step }: { step: RunnerStep }) {
+function ActiveStepDetail({
+  step,
+  onAutoPlace,
+}: {
+  step: RunnerStep;
+  onAutoPlace: (step: RunnerStep["step"]) => void;
+}) {
   const { result } = step;
   const showHint = !result.passed && step.step.hint;
+  const showAutoPlace = !result.passed && stepAllowsAutoPlace(step.step);
 
   return (
     <VStack gap={1.5} data-lesson-active-detail="">
@@ -198,6 +216,19 @@ function ActiveStepDetail({ step }: { step: RunnerStep }) {
             💡 {step.step.hint}
           </Text>
         </HStack>
+      )}
+
+      {showAutoPlace && (
+        <div data-lesson-autoplace="">
+          <Button
+            label="Do it for me — auto-place the parts for this step"
+            variant="secondary"
+            size="sm"
+            onClick={() => onAutoPlace(step.step)}
+          >
+            ✨ Do it for me
+          </Button>
+        </div>
       )}
     </VStack>
   );
