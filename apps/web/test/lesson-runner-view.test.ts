@@ -126,8 +126,8 @@ describe("deriveRunnerView", () => {
   it("advances the active step forward once its predicate passes", () => {
     const view = deriveRunnerView(lesson(), partsOnly(), getComponent, checkSchematic);
     expect(view.activeIndex).toBe(1);
-    expect(view.steps[0].status).toBe("passed");
-    expect(view.steps[0].result.passed).toBe(true);
+    expect(view.steps[0]!.status).toBe("passed");
+    expect(view.steps[0]!.result.passed).toBe(true);
     expect(view.active?.step.id).toBe("s2-resistor-a");
   });
 
@@ -150,7 +150,7 @@ describe("deriveRunnerView", () => {
   it("surfaces ERC floating-pin warnings on a passing step without failing it", () => {
     // Resistor correct → step 2 passes, but display segments b–g dangle → warnings.
     const view = deriveRunnerView(lesson(), resistorWired(330), getComponent, checkSchematic);
-    const step2 = view.steps[1];
+    const step2 = view.steps[1]!;
     expect(step2.result.passed).toBe(true);
     expect(step2.result.warnings.length).toBeGreaterThan(0);
   });
