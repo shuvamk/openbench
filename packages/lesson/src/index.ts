@@ -23,6 +23,7 @@ export {
   type LessonAI,
   type TutorContext,
 } from "./ai";
+export { seedLessons, sevenSegmentLesson } from "./seeds";
 export type {
   ClauseResult,
   ComponentClause,

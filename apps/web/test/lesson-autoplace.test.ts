@@ -159,4 +159,51 @@ describe("autoPlaceStep", () => {
     expect(evaluateStep(step2(), twice, getComponent).passed).toBe(true);
     expect(twice.instances.filter((i) => i.componentId === "cmp_resistor_generic")).toHaveLength(1);
   });
+
+  // Regression (issue #54): a single step that introduces several IDENTICAL parts
+  // (e.g. seven 330Ω resistors, one per segment) must place a DISTINCT instance
+  // per role. The previous reuse logic re-bound a just-imported clone to the next
+  // role — collapsing N roles onto ⌈N/2⌉ instances — because it only excluded
+  // instances already *reused*, not ones already assigned to a role this call.
+  it("places one distinct instance per role when a step introduces N identical parts", () => {
+    const N = 5;
+    const roles = Array.from({ length: N }, (_, i) => `R${i + 1}`);
+    const targets = roles.map((_r, i) => ({
+      instanceId: `T${i + 1}`,
+      componentId: "cmp_resistor_generic",
+      parameterOverrides: { resistance: 330 },
+    }));
+    const multiTarget = sch(targets, []);
+    const multiLesson: Lesson = {
+      lessonFormat: "0.1.0",
+      id: "les_multi",
+      title: "Many resistors",
+      description: "Place N identical resistors.",
+      difficulty: "beginner",
+      targetBundle: { schematic: multiTarget } as ProjectBundle,
+      steps: [
+        {
+          id: "place-many",
+          instruction: "Place N resistors.",
+          expect: {
+            all: roles.map((role) => ({
+              component: {
+                of: "cmp_resistor_generic",
+                as: role,
+                where: [{ param: "resistance", approx: { value: 330, tolerancePct: 5 } }],
+              },
+            })),
+          },
+          allowAutoPlace: true,
+        },
+      ],
+    };
+    const step = multiLesson.steps[0]!;
+    const placed = autoPlaceStep(multiLesson, step, sch([], []), getComponent);
+    expect(
+      placed.instances.filter((i) => i.componentId === "cmp_resistor_generic"),
+    ).toHaveLength(N);
+    // The step needs N DISTINCT instances (injective role binding) — so it passes.
+    expect(evaluateStep(step, placed, getComponent).passed).toBe(true);
+  });
 });
