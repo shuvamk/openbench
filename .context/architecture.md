@@ -149,6 +149,25 @@ Status of each: [engine-status.md](engine-status.md).
   the on-canvas LED. Adds an `apps/web → mcp-firmware-platformio` dependency edge. See
   [firmware-in-the-loop.md](firmware-in-the-loop.md).
 
+### 3.6 Agent-control surface — `packages/mcp-openbench`
+The **product-level** MCP server (spike #33 / ADR-0019; issue #42) — the altitude an AI
+agent actually works at. Where the §3 engine adapters each wrap one engine
+(`import`/`export`/`validate`), this server speaks circuit-authoring verbs and hides the IR
+plumbing, turning *"design me an RC low-pass and show me the step response"* into a result.
+- **Ten tools**, author → derive → inspect: `create_project`, `list_registry`, `add_instance`,
+  `connect`, `set_param`, `remove_instances` (authoring, → `@openbench/schematic-ops`);
+  `validate_schematic` (IR validate ⊕ ERC), `compile_netlist` (→ `netlist-compiler`),
+  `run_simulation` (transient on the deterministic `MockBackend`); `read_waveform` (decode
+  samples → `t`/`v` arrays). **No new engine logic** — every tool is a thin translation of an
+  existing pure function.
+- **Stateless** (ADR-0019 §2): each tool takes the current IR document in its args and returns
+  the mutated document — no session, matching `mcp-sim-ngspice`. **Never-throws**: the
+  `{ ok, data | errors }` contract on every tool.
+- The tool handlers are exported pure functions (`src/tools.ts`) importing the shared
+  `@openbench/schematic-ops` ops (§2.7), so the external MCP server and the in-app copilot run
+  **one** implementation and cannot drift. Ships a publishable stdio bin (esbuild `build.mjs`),
+  parity with the adapter servers. Status + boundaries: [engine-status.md](engine-status.md).
+
 ### 4. UI — `apps/web`
 - Next.js (App Router) deployed on Vercel; API route handlers under `app/api/` serve
   IR documents (project CRUD, registry lookup, sim orchestration).
