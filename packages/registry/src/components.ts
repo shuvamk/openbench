@@ -33,6 +33,33 @@ export const resistorGeneric: Component = {
     template: "R{ref} {p1} {p2} {resistance}",
   },
   footprint: { kicadRef: "Resistor_SMD:R_0603_1608Metric" },
+  education: {
+    summary:
+      "A resistor limits how much current flows. For a given voltage, more resistance means less current — it's the most common way to protect other parts.",
+    gotchas: [
+      "A resistor has no polarity — it works the same connected either way round.",
+      "Resistance is measured in ohms (Ω): 1 kΩ = 1,000 Ω and 1 MΩ = 1,000,000 Ω.",
+      "It turns the energy it drops into heat, so a real resistor also has a power rating you shouldn't exceed.",
+    ],
+    keyFormula: {
+      display: "V = I × R  (Ohm's law)",
+      variables: {
+        V: "voltage across the resistor, in volts",
+        I: "current flowing through it, in amps",
+        R: "the resistance, in ohms",
+      },
+    },
+    paramNotes: {
+      resistance:
+        "The resistance in ohms. Raise it to let less current through; lower it to allow more.",
+    },
+    interactiveHint: {
+      targetParam: "resistance",
+      observe: "current",
+      prompt:
+        "Drag the resistance and watch the current change — doubling the resistance halves the current for the same voltage.",
+    },
+  },
   provenance: PROVENANCE,
 };
 
@@ -52,6 +79,33 @@ export const capacitorGeneric: Component = {
     template: "C{ref} {p1} {p2} {capacitance}",
   },
   footprint: { kicadRef: "Capacitor_SMD:C_0603_1608Metric" },
+  education: {
+    summary:
+      "A capacitor stores charge and resists sudden changes in voltage. It blocks steady DC once charged but passes changing (AC) signals — handy for smoothing supplies and filtering.",
+    gotchas: [
+      "Once charged, a capacitor blocks steady DC current — it is not a battery and will not power a load for long.",
+      "Capacitance is in farads (F), but real parts are tiny: microfarads (µF, 1e-6) or nanofarads (nF, 1e-9).",
+      "Paired with a resistor it charges on a curve, not instantly — the R×C time constant sets how fast.",
+    ],
+    keyFormula: {
+      display: "Q = C × V",
+      variables: {
+        Q: "charge stored, in coulombs",
+        C: "the capacitance, in farads",
+        V: "voltage across the capacitor, in volts",
+      },
+    },
+    paramNotes: {
+      capacitance:
+        "The capacitance in farads. Larger values store more charge and smooth voltage more, but charge and discharge more slowly.",
+    },
+    interactiveHint: {
+      targetParam: "capacitance",
+      observe: "voltage",
+      prompt:
+        "Change the capacitance and watch how quickly the voltage settles — a bigger capacitor charges more slowly.",
+    },
+  },
   provenance: PROVENANCE,
 };
 
@@ -72,6 +126,31 @@ export const ledGeneric: Component = {
     modelCard: ".model DLED D(IS=1e-14 N=2.0)",
   },
   footprint: { kicadRef: "LED_SMD:LED_0603_1608Metric" },
+  education: {
+    summary:
+      "An LED lights up when current flows through it the correct way. It's a diode, so it only conducts in one direction and needs help limiting its current.",
+    gotchas: [
+      "An LED is polarized: current flows only from the anode (+) to the cathode (−). Wire it backwards and it simply stays dark.",
+      "Always put a current-limiting resistor in series — connecting an LED straight across a supply lets too much current through and burns it out.",
+      "Brightness follows the current you allow through it; this generic LED has no brightness parameter of its own.",
+    ],
+    keyFormula: {
+      display: "R = (Vsupply − Vf) / I",
+      variables: {
+        R: "the series current-limiting resistor, in ohms",
+        Vsupply: "your supply voltage, in volts",
+        Vf: "the LED's forward voltage drop, about 2 V",
+        I: "the LED current you want, e.g. 0.01 A (10 mA)",
+      },
+    },
+    interactiveHint: {
+      targetComponentId: "cmp_resistor_generic",
+      targetParam: "resistance",
+      observe: "brightness",
+      prompt:
+        "Change the series resistor and watch the LED: a larger resistor means less current and a dimmer LED, a smaller one means brighter — until too much current would burn it out.",
+    },
+  },
   provenance: PROVENANCE,
 };
 
