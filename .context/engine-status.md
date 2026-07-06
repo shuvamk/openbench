@@ -117,9 +117,9 @@
   - **Symbol/library resolution** → the curated `@openbench/registry` (32 parts) is the source of symbols; foreign-file symbols import heuristically (reference-only, with warnings). No `.kicad_sym` library resolution is required for Phase-1 flat single-sheet schematics — already the parser's documented limit.
   - **PCB layout / gerbers / drill / STEP / footprints** → an **explicit non-goal** (CLAUDE.md: "PCB layout/fab (deferred)"), so no `kicad-cli pcb *` surface is ever invoked.
   ⇒ `mcp-kicad` needs **zero** native binary bundling for the desktop pivot; the "real
-  `kicad-cli`" item should be **dropped from the desktop-pivot ADR's native-engine scope**
-  (it is currently listed on the unmerged `desktop-pivot-adr` branch alongside
-  ngspice/pio/qemu — tracked in issue #159). If a later, out-of-Phase-1 feature ever needs
+  `kicad-cli`" item is **dropped from the desktop-pivot ADR's native-engine scope** —
+  recorded in **ADR-0029** (native engines = ngspice/pio/qemu only), which resolved issue
+  #159 and renumbered the pivot ADR off the colliding `desktop-pivot-adr` branch. If a later, out-of-Phase-1 feature ever needs
   KiCad-native rendering or PCB output, that is a fresh, separately-scoped feature — not
   part of this Epic.
 
