@@ -21,3 +21,4 @@ export {
   type Point,
   type PlaceResult,
 } from "./mutations";
+export { createProject, type CreateProjectOptions } from "./project";
