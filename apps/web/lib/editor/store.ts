@@ -94,6 +94,8 @@ export interface EditorState {
   /** Undo/redo stacks of schematic snapshots, newest last / next first. */
   past: SchematicDoc[];
   future: SchematicDoc[];
+  /** Teaching panel (issue #163) open in the editor chrome; self-gates LessonPanel. */
+  teachingOpen: boolean;
 
   loadProject(projectId: string): Promise<void>;
   /** Hydrate a read-only bundle decoded from a share/embed payload (issue #40). */
@@ -139,6 +141,8 @@ export interface EditorState {
   setZoom(zoom: number): void;
   setView(zoom: number, pan: Point): void;
   setPan(pan: Point): void;
+  /** Show/hide the teaching (lesson) panel in the editor chrome (issue #163). */
+  toggleTeaching(): void;
 
   flushSave(): Promise<void>;
 }
@@ -157,6 +161,7 @@ const initialState = {
   pan: { x: 0, y: 0 },
   past: [] as SchematicDoc[],
   future: [] as SchematicDoc[],
+  teachingOpen: false,
 };
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -400,6 +405,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     setPan(pan) {
       set({ pan });
+    },
+
+    toggleTeaching() {
+      set({ teachingOpen: !get().teachingOpen });
     },
 
     async flushSave() {

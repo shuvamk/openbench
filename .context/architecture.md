@@ -174,6 +174,17 @@ Status of each: [engine-status.md](engine-status.md).
   (`components/embed/EmbedSimulator.tsx`) hydrates a read-only project with minimal chrome
   (name + Run + canvas) for iframes; `components/editor/ShareButton.tsx` copies the link.
   Purely client-side — no server, DB, or account (ADR-0008). NOT multiplayer/CRDT.
+- Teaching chrome (issue #163): `components/lesson/LessonPanel.tsx` is the single editor
+  mount for the teaching flow — a right-side panel (Design mode only) that self-gates on
+  the editor store's `teachingOpen` flag (like `ErcPanel`), so the page mounts it
+  unconditionally and the `EditorTopBar` "Teaching" toggle just flips the flag. It toggles
+  in place between the author view (`LessonAuthorPanel`, derive→refine steps from the live
+  build) and the student view (`StudentRunnerPanel` run against a preview lesson).
+  `apps/web/lib/lesson/preview.ts` (`buildPreviewLesson`) is the pure seam wrapping the
+  live bundle as a `les_preview` `Lesson` (current bundle → `targetBundle`, undo-history →
+  derived steps) so the author can preview the student experience without a share
+  round-trip. This makes the teaching author/runner (`packages/lesson`, §2.7) reachable by
+  users — previously they were only exercised in tests.
 
 ### 5. Desktop shell — `apps/desktop`
 - Electron shell that wraps the `apps/web` UI, first slice of the desktop pivot

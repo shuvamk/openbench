@@ -8,6 +8,7 @@ import { Inspector } from "../../../components/editor/Inspector";
 import { Palette } from "../../../components/editor/Palette";
 import { SchematicCanvas } from "../../../components/editor/SchematicCanvas";
 import { SimPanel } from "../../../components/sim/SimPanel";
+import { LessonPanel } from "../../../components/lesson/LessonPanel";
 import { PlaybackBar } from "../../../components/editor/PlaybackBar";
 import { resetEditorState, useEditorStore } from "../../../lib/editor/store";
 import { resetLiveState, useLiveStore } from "../../../lib/live/store";
@@ -63,6 +64,7 @@ export default function EditorPage({
           {mode === "design" && <Palette />}
           <SchematicCanvas />
           {mode === "design" && <Inspector />}
+          {mode === "design" && <LessonPanel />}
         </div>
       )}
       {mode === "live" && <PlaybackBar />}
