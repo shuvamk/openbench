@@ -39,10 +39,13 @@ export {
   EECircuitBackend,
   MockBackend,
   NativeNgspiceBackend,
+  NgspiceCliBackend,
+  parseNgspiceOutput,
   type BackendResult,
   type MockBackendOptions,
   type NativeNgspiceAvailability,
   type NativeNgspiceHooks,
+  type NgspiceCliOptions,
   type SimBackend,
 } from "./backend";
 export {

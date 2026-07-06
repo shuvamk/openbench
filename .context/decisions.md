@@ -635,3 +635,24 @@ step introducing N identical parts (seven 330 Ω resistors) collapsed onto ⌈N/
 because `resolveRole` could re-bind a clone it had just imported for a sibling role. Fixed by
 tracking *all* instances claimed by a role this call (reused **and** imported), so distinct
 roles always map to distinct instances. Regression test in `lesson-autoplace.test.ts`.
+
+## ADR-0028 — Desktop native ngspice CLI is a second backend (`NgspiceCliBackend`, wrdata ASCII), pending convergence (issue #118, 2026-07-06)
+
+**Context:** Issue #118 (desktop pivot, ADR-0024) asks for a feature-detected native ngspice
+`SimBackend` that shells out to a bundled binary. It was authored assuming #30 (the general
+native-backend work) was still open; in fact #30 shipped `NativeNgspiceBackend` — a native CLI
+backend that parses ngspice's binary **rawfile** (`SPICE_ASCIIRAWFILE=1` + `parseRawfile`).
+
+**Decision:** Implement #118 as specified — a distinct `NgspiceCliBackend` (`name: "ngspice-cli"`)
+that appends a `.control … wrdata … .endc` block and parses the plain-ASCII column table via the
+exported `parseNgspiceOutput`. Rationale: the issue's acceptance criteria name these exact symbols,
+and wrdata ASCII is genuinely simpler + more version-robust to parse than the rawfile the sibling
+backend decodes (the desktop app's headline promise is "real ngspice"). Reconciliation of one
+criterion: `SimBackend.run` returns `BackendResult`, so — like `NativeNgspiceBackend` and unlike the
+`FirmwareBackend` PioCliBackend it was modelled on — `run()` **throws** an `engine-unavailable`
+`NgspiceAdapterError`; the "structured failure that does not throw" is the `runSimulation(...)` result
+(`status:"failed"`, `engine-unavailable` in logs), which the acceptance test asserts.
+
+**Consequences:** Two native ngspice backends coexist. That's deliberate-but-temporary: filed #185 to
+converge them once the Electron desktop backend (#119+) settles on one. The bundling issues (#121/#122)
+inject the bundled binary path into either via its constructor option. No IR/interface change.
