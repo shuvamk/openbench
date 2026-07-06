@@ -89,6 +89,18 @@ other directly — every hand-off is an IR document.
   instances/nets surface as templated `warnings` that never gate `passed` (§3.4). Depends
   on `@openbench/ir-schema` + `@openbench/erc`; imported by the future authoring UI and
   student runner.
+- **Self-consistency validation** (issue #50): `validateLesson(lesson, resolveComponent,
+  erc?) → { ok: true } | { ok: false, issues: LessonIssue[] }` is the author-time dual of
+  `evaluateStep`. It runs each structurally-valid step against the lesson's own
+  `targetBundle.schematic` **with the same evaluator a student runs**, so a lesson can never
+  ship asking a student to reach a state the reference design itself never reaches
+  (`TARGET_FAILS_STEP`, monotonicity makes the finished circuit expected to pass every step).
+  It also rejects structural defects — absent/empty steps (`EMPTY_STEPS`), a step missing an
+  id/`expect` (`MALFORMED_STEP`), duplicate step ids (`DUPLICATE_STEP_ID`, which would break
+  progress tracking), a non-object lesson or missing target schematic (`MALFORMED_LESSON`).
+  Pure and **total: never throws** — malformed input yields structured `issues`, mirroring
+  the evaluator — so the author UI, share-link loader, and AI auto-author surface problems
+  instead of crashing.
 - **Author-by-recording** (issue #90, design §5): `deriveStepsFromRecording(batches,
   options?) → Step[]` turns an editor mutation recording — a sequence of cumulative
   schematic snapshots, one per undo-history batch (#18) — into candidate steps. Each
