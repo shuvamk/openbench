@@ -108,7 +108,9 @@ const fixtures = {
 
 /** Compile the emitted schema once with a standard draft-2020-12 validator. */
 function compileValidator() {
-  const ajv = new Ajv2020({ strict: false });
+  // `date-time` is an annotation-only format we don't assert on; `logger: false`
+  // silences ajv's "unknown format" warnings without affecting validate.errors.
+  const ajv = new Ajv2020({ strict: false, logger: false });
   return ajv.compile(toJsonSchema());
 }
 

@@ -46,3 +46,4 @@ export {
 export { projectSchema, validateProject, type Project } from "./project";
 export type { ProjectBundle } from "./bundle";
 export { irDocumentSchema, validateDocument, type IrDocument } from "./document";
+export { toJsonSchema, JSON_SCHEMA_DIALECT } from "./json-schema";
