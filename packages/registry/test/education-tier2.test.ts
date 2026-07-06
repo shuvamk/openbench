@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateComponent, type Component } from "@openbench/ir-schema";
-import { getComponent } from "../src/index";
+import { getComponent, registryComponents } from "../src/index";
 
 /**
  * Acceptance tests for issue #170 — extend `education` content + `interactiveHint`
@@ -144,4 +144,31 @@ describe("tier-2 hero-part education content (issue #170)", () => {
     expect(hint).toBeDefined();
     expect(hint!.targetComponentId).toBe("cmp_resistor_generic");
   });
+});
+
+/**
+ * Issue #174 — generalize the observe-series guard to EVERY authored part, not
+ * just tier-2. The capacitor (tier-1, #79) shipped `interactiveHint.observe:
+ * "voltage"` but its liveKind emitted nothing, so the knob was perpetually
+ * blank. This guard scans the whole registry so any authored hint whose observed
+ * series its liveKind doesn't emit fails loudly, regardless of tier.
+ */
+describe("every authored interactiveHint.observe is a series its liveKind emits (issue #174)", () => {
+  const authored = registryComponents.filter((c) => c.education?.interactiveHint);
+
+  it("covers at least the capacitor (regression subject)", () => {
+    expect(authored.map((c) => c.id)).toContain("cmp_capacitor_generic");
+  });
+
+  it.each(authored.map((c) => [c.id, c] as const))(
+    "%s observes a series its liveKind emits",
+    (_id, component) => {
+      const hint = component.education!.interactiveHint!;
+      const emitted = emittedSeries(component);
+      expect(
+        emitted.has(hint.observe),
+        `${component.id} interactiveHint.observe "${hint.observe}" is not emitted by liveKind ${liveKindOf(component)} (has: ${[...emitted].join(", ")})`,
+      ).toBe(true);
+    },
+  );
 });
