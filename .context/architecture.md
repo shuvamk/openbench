@@ -208,6 +208,12 @@ plumbing, turning *"design me an RC low-pass and show me the step response"* int
     `simulationRun` and returns a deterministic summary that **cites the machine ERC rule
     id** (an agent-facing explanation, distinct from the beginner-facing `ErcPanel`, which
     hides `ERC_*` codes).
+  - `part-context.ts` — `assemblePartContext(component)` grounds the "what is this /
+    explain this part" answer in the selected component's IR `education` block (issue #82) —
+    the SAME single source of truth the Learn panel renders, so the static panel and the AI
+    can never contradict each other. When the block is absent/empty it degrades to the
+    part's identity only (`grounded: false`): no fabricated summary, no empty-field
+    injection. Exposed as `copilot.explainPart(component)`.
   - `engine.ts` — `createCopilot({apiKey?})` is a **key-optional seam** (mirrors ADR-0003):
     with no key it runs a deterministic scripted planner ("mock" mode) with ZERO network,
     so the keyless deploy and the test suite work; a key would swap in a real model client
