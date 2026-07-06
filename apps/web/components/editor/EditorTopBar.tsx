@@ -118,6 +118,8 @@ export function EditorTopBar() {
   const enterLive = useLiveStore((s) => s.enterLive);
   const exitLive = useLiveStore((s) => s.exitLive);
   const enterError = useLiveStore((s) => s.enterError);
+  const teachingOpen = useEditorStore((s) => s.teachingOpen);
+  const toggleTeaching = useEditorStore((s) => s.toggleTeaching);
 
   const [draftName, setDraftName] = useState<string | null>(null);
 
@@ -275,6 +277,16 @@ export function EditorTopBar() {
               onClick={() => void enterLive()}
             />
           </HStack>
+        </StackItem>
+
+        <StackItem size="static">
+          <Button
+            label="Teaching"
+            size="sm"
+            variant={teachingOpen ? "secondary" : "ghost"}
+            isDisabled={!bundle}
+            onClick={() => toggleTeaching()}
+          />
         </StackItem>
 
         <StackItem size="static">
