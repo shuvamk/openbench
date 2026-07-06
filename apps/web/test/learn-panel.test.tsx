@@ -137,7 +137,7 @@ describe("LearnPanel (issue #80)", () => {
     );
     expect(container.querySelector("[data-testid='learn-panel']")).not.toBeNull();
     // Novel field values render without any component-specific branching.
-    expect(screen.getByText(FIXTURE_MARKER)).toBeTruthy();
+    expect(screen.getByText(new RegExp(FIXTURE_MARKER))).toBeTruthy();
     expect(screen.getByText(/ZZ_fixture_param_note_marker/)).toBeTruthy();
     expect(screen.getByText(/y = gain × x/)).toBeTruthy();
   });

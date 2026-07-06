@@ -11,6 +11,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/Stack";
 import { useEditorStore } from "../../lib/editor/store";
 import { ErcPanel } from "./ErcPanel";
+import { LearnPanel } from "./LearnPanel";
 
 /** Right rail: selected instance details, parameter editing, connected nets. */
 export function Inspector() {
@@ -37,6 +38,8 @@ export function Inspector() {
       <VStack gap={4}>
         {/* Circuit-wide ERC issues, always on top; self-hides when clean. */}
         <ErcPanel />
+        {/* Contextual learning for the selected part; self-hides when absent/off. */}
+        <LearnPanel />
         {!instance || !component || !schematic ? (
         <VStack gap={2}>
           <Text type="label" color="secondary">
