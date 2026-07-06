@@ -1,0 +1,31 @@
+{
+  "name": "@openbench/mcp-openbench",
+  "version": "0.1.0",
+  "description": "Agent-control MCP server: author, wire, simulate and read back circuits through the IR (spike #33 / ADR-0019).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@openbench/ir-schema": "*",
+    "@openbench/schematic-ops": "*",
+    "@openbench/registry": "*",
+    "@openbench/netlist-compiler": "*",
+    "@openbench/erc": "*",
+    "@openbench/mcp-sim-ngspice": "*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.24.0"
+  },
+  "bin": {
+    "openbench-mcp-openbench": "./dist/server-cli.js"
+  }
+}
