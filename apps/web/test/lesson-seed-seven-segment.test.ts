@@ -94,8 +94,8 @@ describe("seed lesson: 7-Segment LED Display — structure", () => {
 
   it("carries a valid target project + schematic (IR-valid)", () => {
     const { project, schematic } = sevenSegmentLesson.targetBundle;
-    expect(validateProject(project).ok).toBe(true);
-    expect(validateSchematic(schematic).ok).toBe(true);
+    expect(validateProject(project).valid).toBe(true);
+    expect(validateSchematic(schematic).valid).toBe(true);
   });
 
   it("has a reasonable step count for a college practical (6–8)", () => {

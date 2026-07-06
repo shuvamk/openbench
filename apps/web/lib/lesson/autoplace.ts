@@ -157,7 +157,12 @@ export function autoPlaceStep(
   const instances: SchematicInstance[] = [...current.instances];
   const takenIds = new Set(instances.map((i) => i.instanceId));
   const roleToCurrentId = new Map<string, string>();
-  const reusedCurrentIds = new Set<string>();
+  // Instances already claimed by a role this call — whether reused from the
+  // student's schematic or freshly imported. Distinct roles must map to distinct
+  // instances, so a role never reuses another role's part (including a clone
+  // imported moments earlier for a sibling role in the same step). Without this,
+  // a step introducing N identical parts collapses onto ⌈N/2⌉ (issue #54).
+  const claimedInstanceIds = new Set<string>();
 
   /** Resolve a role to a live instanceId — reuse an equivalent, else import a clone. */
   function resolveRole(role: string): string | undefined {
@@ -168,16 +173,17 @@ export function autoPlaceStep(
     const existing = instances.find(
       (i) =>
         i.componentId === binding.componentId &&
-        !reusedCurrentIds.has(i.instanceId) &&
+        !claimedInstanceIds.has(i.instanceId) &&
         matchesWhere(i, binding.where, resolveComponent),
     );
     if (existing) {
-      reusedCurrentIds.add(existing.instanceId);
+      claimedInstanceIds.add(existing.instanceId);
       roleToCurrentId.set(role, existing.instanceId);
       return existing.instanceId;
     }
     const id = uniqueInstanceId(binding.targetInstance.instanceId, takenIds);
     takenIds.add(id);
+    claimedInstanceIds.add(id);
     const clone: SchematicInstance = {
       ...binding.targetInstance,
       instanceId: id,

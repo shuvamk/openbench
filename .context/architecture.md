@@ -115,6 +115,16 @@ other directly — every hand-off is an IR document.
   *teaching-author editor mode* that groups undo history into batches and lets authors
   edit instruction/hint/constraints is a separately-filed UI follow-up. Follow-ups: student
   runner (#91), share + AI seam (#92).
+- **Seed lessons** (issue #54): `packages/lesson/src/seeds/` ships built-in demo lessons as
+  data, exported from the package as `seedLessons: Lesson[]` (a future gallery imports this
+  catalog directly). The first is `sevenSegmentLesson` — the "7-Segment LED Display" college
+  practical: six steps that drive every segment a–g of a common-cathode digit ("8") from a
+  5 V rail through seven 330 Ω resistors, cathode to ground. It is authored entirely against
+  the framework — passes `validateLesson`, is fully reconstructible by "do it for me"
+  auto-place (each part carries a role), and its `targetBundle` compiles + runs a **real**
+  ngspice transient with every segment forward-biased (golden test in
+  `apps/web/test/lesson-seed-seven-segment.test.ts`, run with `EECircuitBackend` in node).
+  Surfacing seed lessons in a lesson gallery UI is a separately-filed frontend follow-up.
 
 ### 3. Engine adapters — `packages/mcp-*`
 Each adapter is an MCP server exposing the standard tool contract

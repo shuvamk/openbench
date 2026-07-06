@@ -605,3 +605,33 @@ authored bounds). Verified-direction: larger series R → smaller LED current, a
 `knobReadout`/`deriveInstanceStates` on solver-representative node voltages (the node suite
 uses MockBackend by ADR-0006, so the R→current *physics* is exercised at the derive layer, not
 end-to-end through WASM).
+
+## ADR-0027 — Seed lessons live in `@openbench/lesson`; a golden lesson may run real WASM ngspice (issue #54, 2026-07-06)
+
+**Context:** Issue #54 ships the first authored demo lesson (the "7-Segment LED Display"
+college practical) and asks it to validate the teaching pipeline end-to-end, including a
+"golden test" that the finished circuit *runs with the driven segments lit*.
+
+**Decisions:**
+1. **Home.** Seed lesson content lives in the `@openbench/lesson` package
+   (`src/seeds/`, exported as `seedLessons`), not in `apps/web`. Rationale: `Lesson`/
+   `ProjectBundle` were deliberately promoted to shared packages (ADR-0022 / #89) so non-UI
+   consumers can pass them around; a seeded lesson is exactly such shareable content, and a
+   future gallery (or MCP/server) imports the catalog without depending on the web app.
+2. **Golden physics via real ngspice.** The seed's golden test compiles `targetBundle`
+   through the netlist compiler and runs a transient on the **real** `EECircuitBackend`
+   (WASM ngspice, headless in node — ~250 ms), asserting every segment node sits at the
+   diode forward drop (conducting = lit). This is a deliberate, *scoped* exception to
+   ADR-0006's "node suite uses MockBackend": the mock returns synthetic waveforms and can't
+   prove conduction, and "segments lit" is the whole point of the demo. It lives in
+   `apps/web/test/` (the only workspace with autoplace + compiler + sim + lesson wired), in
+   the default `node` vitest environment. Ordinary sim tests keep using MockBackend.
+
+**Consequences:** New demo lessons follow the same pattern (data in `packages/lesson/src/seeds`,
+integration test in `apps/web/test`). Surfacing seeds in a gallery UI is a filed follow-up.
+
+**Incidental fix:** authoring #54 surfaced a bug in "do it for me" auto-place (#153): a single
+step introducing N identical parts (seven 330 Ω resistors) collapsed onto ⌈N/2⌉ instances,
+because `resolveRole` could re-bind a clone it had just imported for a sibling role. Fixed by
+tracking *all* instances claimed by a role this call (reused **and** imported), so distinct
+roles always map to distinct instances. Regression test in `lesson-autoplace.test.ts`.
