@@ -220,6 +220,31 @@ export const diodeGeneric: Component = {
     template: "D{ref} {a} {k} D1N4148",
     modelCard: ".model D1N4148 D(IS=2.52e-9 N=1.752)",
   },
+  education: {
+    summary:
+      "A diode lets current flow one way only — from the anode (A) to the cathode (K) — and blocks it the other way. It's the electronic version of a one-way valve.",
+    gotchas: [
+      "A diode is polarized: it conducts from anode (A) to cathode (K) and blocks the reverse direction — fit it backwards and almost no current flows.",
+      "It isn't a perfect switch: a conducting silicon diode drops roughly 0.6–0.7 V across itself.",
+      "Like an LED it needs something to limit current — usually a series resistor — or a large forward current can overheat it.",
+    ],
+    keyFormula: {
+      display: "I ≈ Is · (e^(V / (n·Vt)) − 1)   (Shockley)",
+      variables: {
+        I: "forward current through the diode, in amps",
+        V: "forward voltage across it, in volts",
+        Is: "the tiny saturation current (a device constant)",
+        "n·Vt": "the ideality factor times the ~0.026 V thermal voltage",
+      },
+    },
+    interactiveHint: {
+      targetComponentId: "cmp_resistor_generic",
+      targetParam: "resistance",
+      observe: "current",
+      prompt:
+        "Change the series resistor and watch the diode's forward current — a bigger resistor lets less through, while its small forward-voltage drop barely moves.",
+    },
+  },
   provenance: PROVENANCE,
 };
 
@@ -271,6 +296,35 @@ export const potentiometer: Component = {
       rB: "rtotal*(1-position) + 1",
     },
   },
+  education: {
+    summary:
+      "A potentiometer is a resistor with a movable wiper that taps off somewhere between its two ends. Turning it splits the total resistance into two parts, so it works as an adjustable voltage divider.",
+    gotchas: [
+      "It has three terminals: the two ends (1, 2) and the wiper (W) in the middle — wiring the wiper and just one end turns it into a simple variable resistor (rheostat).",
+      "`position` is a fraction from 0 to 1 (how far the wiper has travelled), not a resistance — each half's resistance is position × rtotal.",
+      "The two halves always add up to rtotal, so as one side grows the other shrinks by the same amount.",
+    ],
+    keyFormula: {
+      display: "Vwiper = Vin × position   (as a divider)",
+      variables: {
+        Vwiper: "voltage at the wiper, in volts",
+        Vin: "voltage across the whole track, in volts",
+        position: "the wiper fraction, from 0 to 1",
+      },
+    },
+    paramNotes: {
+      rtotal:
+        "The end-to-end resistance in ohms. Larger values draw less current from the supply for the same voltage.",
+      position:
+        "The wiper position from 0 (at end 1) to 1 (at end 2). It sets how the total resistance divides between the two halves.",
+    },
+    interactiveHint: {
+      targetParam: "rtotal",
+      observe: "voltage",
+      prompt:
+        "Change the total resistance and watch the voltage the potentiometer taps off — a smaller track drops less of the supply across it.",
+    },
+  },
   provenance: PROVENANCE,
 };
 
@@ -290,6 +344,19 @@ export const pushbutton: Component = {
     engine: "ngspice",
     template: "R{ref} {p1} {p2} {ronoff}",
     derivedParams: { ronoff: "0.001 + (1 - pressed) * 1e12" },
+  },
+  education: {
+    summary:
+      "A pushbutton makes a connection only while you hold it down: press it and current can flow between its two terminals; let go and the path opens again.",
+    gotchas: [
+      "It's momentary — it conducts only while pressed and springs back open on release, unlike a latching switch that stays put.",
+      "A button on its own leaves the wire 'floating' when open; real circuits add a pull-up or pull-down resistor so the input still reads a definite high or low.",
+      "`pressed` is a state, not a component value: 1 means held down (closed), 0 means released (open).",
+    ],
+    paramNotes: {
+      pressed:
+        "Whether the button is held down: 1 = pressed (a near-zero-resistance connection), 0 = released (effectively an open circuit).",
+    },
   },
   provenance: PROVENANCE,
 };
@@ -336,6 +403,34 @@ export const dcMotor: Component = {
   simModel: {
     engine: "ngspice",
     template: "R{ref} {p1} {p2} {rwinding}",
+  },
+  education: {
+    summary:
+      "A DC motor spins faster the more voltage you put across it. In this DC model it behaves like its winding resistance, which sets how much current it pulls and how hard it can push when stalled.",
+    gotchas: [
+      "A motor is inductive: switching it off kicks back a voltage spike, so real circuits add a flyback diode across it to protect whatever drives it.",
+      "The instant it starts (still stalled) it draws the most current — roughly the supply voltage divided by the winding resistance.",
+      "This is a simplified DC model: it captures current draw and a rough speed, not real torque, inertia, or back-EMF.",
+    ],
+    keyFormula: {
+      display: "speed ≈ V / Vnominal   (fraction of rated)",
+      variables: {
+        V: "voltage across the motor, in volts",
+        Vnominal: "the motor's rated voltage, in volts",
+      },
+    },
+    paramNotes: {
+      rwinding:
+        "The winding resistance in ohms. Lower resistance means more current and a stronger, faster motor — but a heavier load on the supply.",
+      vnominal:
+        "The rated voltage the motor is designed for. It sets what counts as 'full speed' in the read-out.",
+    },
+    interactiveHint: {
+      targetParam: "rwinding",
+      observe: "rpmFraction",
+      prompt:
+        "Change the winding resistance and watch the motor's speed — a lower resistance pulls more current and spins it faster, until the supply can't keep up.",
+    },
   },
   provenance: PROVENANCE,
 };
