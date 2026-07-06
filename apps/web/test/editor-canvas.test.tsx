@@ -237,6 +237,8 @@ describe("Palette", () => {
 
   it("arms the scope-probe tool when the probe button is clicked", () => {
     render(withTheme(<Palette />));
+    // The probe lives on the Instruments tab (palette-tabs feature).
+    fireEvent.click(screen.getByRole("button", { name: "Instruments" }));
     fireEvent.click(screen.getByRole("button", { name: /Scope probe/ }));
     expect(useEditorStore.getState().tool).toBe("probe");
   });
