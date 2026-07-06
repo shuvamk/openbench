@@ -62,16 +62,17 @@ describe("hero-part education content (issue #79)", () => {
     }
   });
 
-  it("parts without authored content stay valid and simply expose no education block", () => {
-    const authored = new Set<string>(HERO_IDS);
+  it("parts without an authored block stay valid and simply expose no education", () => {
+    // Authoring is rolled out tier by tier (#79 heroes, #170 next tier, …), so
+    // rather than pin an exact authored set this guards the invariant that holds
+    // regardless: any part lacking a block still validates, and some remain
+    // unauthored (a blanket block on everything would be a red flag).
     let sawUnauthored = false;
     for (const part of registryComponents) {
-      if (authored.has(part.id)) continue;
+      if (part.education !== undefined) continue;
       sawUnauthored = true;
-      expect(part.education, `${part.id} should have no education block`).toBeUndefined();
       expect(validateComponent(part).valid, `${part.id} must stay valid`).toBe(true);
     }
-    // Sanity: the epic's "only 3 parts" scope means there ARE unauthored parts.
     expect(sawUnauthored).toBe(true);
   });
 });
