@@ -517,3 +517,187 @@ async function defaultExecute(binaryPath: string, deck: string): Promise<string>
     await fs.rm(dir, { recursive: true, force: true });
   }
 }
+
+// ── Native ngspice CLI backend (issue #118, desktop pivot ADR-0024) ──────────
+
+/**
+ * Parse ngspice `wrdata` ASCII output into `{ time, signals }`.
+ *
+ * `wrdata <file> <vec…>` writes a whitespace-separated column table. ngspice
+ * prepends each vector with its own scale column, so P probes yield **2·P**
+ * columns laid out `scale v1 scale v2 …` (the "interleaved" layout). Some
+ * setups (a single shared scale) emit **P+1** columns instead — one leading
+ * scale then one value column per probe. Both are accepted; anything else is a
+ * structured error rather than a silent mis-parse.
+ *
+ * Pure and total in spirit: malformed input (empty, ragged, or an unrecognised
+ * column count) throws a typed {@link NgspiceAdapterError} — never an unhandled
+ * `TypeError` — so `run()` / `runSimulation` can map it to a structured failure.
+ */
+export function parseNgspiceOutput(
+  text: string,
+  probes: string[],
+): { time: Float64Array; signals: Record<string, Float64Array> } {
+  const rows = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    // Skip blanks and comment/annotation lines wrdata never emits as data.
+    .filter((line) => line.length > 0 && !line.startsWith("#") && !line.startsWith("*"))
+    .map((line) => line.split(/\s+/).map(Number));
+
+  if (rows.length === 0) {
+    throw new NgspiceAdapterError("ngspice produced no data rows", [
+      { path: "output", message: "empty wrdata output" },
+    ]);
+  }
+
+  const cols = rows[0]!.length;
+  if (rows.some((r) => r.length !== cols)) {
+    throw new NgspiceAdapterError("ngspice wrdata rows have inconsistent column counts", [
+      { path: "output", message: "ragged wrdata table" },
+    ]);
+  }
+  if (rows.some((r) => r.some((v) => !Number.isFinite(v)))) {
+    throw new NgspiceAdapterError("ngspice wrdata contains non-numeric values", [
+      { path: "output", message: "non-numeric wrdata cell" },
+    ]);
+  }
+
+  const p = probes.length;
+  // Column layout → (scale column index, value column index per probe).
+  let scaleCol: number;
+  let valueColOf: (i: number) => number;
+  if (p > 0 && cols === 2 * p) {
+    scaleCol = 0;
+    valueColOf = (i) => 2 * i + 1; // interleaved: scale v1 scale v2 …
+  } else if (p > 0 && cols === p + 1) {
+    scaleCol = 0;
+    valueColOf = (i) => i + 1; // shared scale, then one value per probe
+  } else {
+    throw new NgspiceAdapterError(
+      `ngspice wrdata has ${cols} columns, which fits neither the interleaved (${2 * p}) ` +
+        `nor shared-scale (${p + 1}) layout for ${p} probe(s)`,
+      [{ path: "output", message: "unrecognised wrdata column count" }],
+    );
+  }
+
+  const time = Float64Array.from(rows, (r) => r[scaleCol]!);
+  const signals: Record<string, Float64Array> = {};
+  probes.forEach((probe, i) => {
+    signals[probe] = Float64Array.from(rows, (r) => r[valueColOf(i)]!);
+  });
+  return { time, signals };
+}
+
+/** Constructor options for {@link NgspiceCliBackend} — all injectable for tests. */
+export interface NgspiceCliOptions {
+  /** ngspice binary name or absolute path; defaults to `ngspice` on PATH. The
+   * bundling issue points this at the bundled binary's absolute path. */
+  ngspiceBinary?: string;
+  /** Availability probe; defaults to `ngspiceBinary --version` exiting 0. */
+  isAvailable?: () => boolean | Promise<boolean>;
+  /** Run a deck through ngspice and return its `wrdata` ASCII text. Injectable. */
+  execute?: (deck: string, probes: string[]) => Promise<string>;
+}
+
+/**
+ * Desktop-facing native ngspice CLI backend (issue #118, ADR-0024). Feature-
+ * detected exactly like `PioCliBackend`: an absent binary is a structured
+ * `engine-unavailable` failure — `run()` throws a typed {@link NgspiceAdapterError}
+ * that `runSimulation` maps to a `status:"failed"` run (never a raw crash).
+ *
+ * It differs from the pre-existing `NativeNgspiceBackend` (#30) only in the wire
+ * format it reads back: this one appends a `wrdata` control block and parses the
+ * plain ASCII column table ({@link parseNgspiceOutput}), which is simpler and
+ * more version-robust than the binary rawfile. The two native paths are expected
+ * to converge once the desktop backend settles on one (tracked as a follow-up).
+ */
+export class NgspiceCliBackend implements SimBackend {
+  readonly name = "ngspice-cli";
+  private readonly ngspiceBinary: string;
+  private readonly isAvailable: () => boolean | Promise<boolean>;
+  private readonly execute: (deck: string, probes: string[]) => Promise<string>;
+
+  constructor(options: NgspiceCliOptions = {}) {
+    this.ngspiceBinary = options.ngspiceBinary ?? "ngspice";
+    this.isAvailable = options.isAvailable ?? (() => defaultCliAvailable(this.ngspiceBinary));
+    this.execute =
+      options.execute ?? ((deck, probes) => defaultCliExecute(this.ngspiceBinary, deck, probes));
+  }
+
+  async run(deck: string, probes: string[]): Promise<BackendResult> {
+    if (!(await this.isAvailable())) {
+      throw new NgspiceAdapterError(
+        `ngspice CLI engine-unavailable: binary "${this.ngspiceBinary}" not found on PATH`,
+        [{ path: "backend", message: "engine-unavailable" }],
+      );
+    }
+
+    let rawText: string;
+    try {
+      rawText = await this.execute(deck, probes);
+    } catch (cause) {
+      throw new NgspiceAdapterError(
+        `ngspice CLI run failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        [{ path: "backend", message: "ngspice CLI run failed" }],
+      );
+    }
+
+    if (/^\.ac\b/im.test(deck)) {
+      throw new NgspiceAdapterError("ngspice CLI backend does not yet decode AC (complex) output", [
+        { path: "backend", message: "AC not supported by the wrdata parser" },
+      ]);
+    }
+
+    const { time, signals } = parseNgspiceOutput(rawText, probes);
+    // Transient/DC/OP all put the independent axis in the scale column. (OP is a
+    // single row; DC's scale is the swept source — both read back as `time`.)
+    return { x: time, signals };
+  }
+}
+
+/** `ngspice --version` exits 0 iff the binary resolves — mirrors `PioCliBackend`. */
+async function defaultCliAvailable(binary: string): Promise<boolean> {
+  const { spawnSync } = await import("node:child_process");
+  try {
+    const probe = spawnSync(binary, ["--version"], { encoding: "utf8", timeout: 5000 });
+    return probe.error === undefined && probe.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Batch run producing `wrdata` ASCII: write the deck with a `.control` block that
+ * runs the analysis and dumps the probes, invoke `ngspice -b`, read the table.
+ * Node-only (lazily imports builtins) and untested in CI — the binary is absent —
+ * exactly like `NativeNgspiceBackend`'s default executor; the bundling issue's
+ * smoke test exercises the real binary.
+ */
+async function defaultCliExecute(binary: string, deck: string, probes: string[]): Promise<string> {
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const fs = await import("node:fs/promises");
+  const { execFile } = await import("node:child_process");
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openbench-ngspice-cli-"));
+  const outPath = path.join(dir, "out.txt");
+  // Strip a trailing `.end` so the control block runs before the deck closes.
+  const body = deck.replace(/^\s*\.end\s*$/im, "").trimEnd();
+  // `wr_singlescale` → one shared scale column (P+1 layout), which
+  // parseNgspiceOutput reads directly. No `wr_vecnames`: a name header would be
+  // a non-numeric row the parser rejects.
+  const control = `\n.control\nrun\nset wr_singlescale\nwrdata ${outPath} ${probes.join(" ")}\n.endc\n.end\n`;
+  const deckPath = path.join(dir, "deck.cir");
+  await fs.writeFile(deckPath, `${body}${control}`, "utf8");
+  try {
+    await new Promise<void>((resolve, reject) => {
+      execFile(binary, ["-b", deckPath], { timeout: 60_000 }, (err) =>
+        err ? reject(err) : resolve(),
+      );
+    });
+    return await fs.readFile(outPath, "utf8");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+}

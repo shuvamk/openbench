@@ -10,7 +10,7 @@
 | Netlist compiler | `packages/netlist-compiler` | **wired** | pure TS |
 | Registry | `packages/registry` | **wired** — 32 curated parts | pure TS data |
 | KiCad | `packages/mcp-kicad` | **partial** — flat single-sheet subset | `.kicad_sch` S-expression parser (pure TS), no kicad-cli — **desktop pivot needs no native kicad-cli, spike #120** |
-| ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep/op, WASM+mock+native backends | WASM (`eecircuit-engine`) in-browser; native CLI feature-detected (rawfile parser, real-binary run pending) |
+| ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep/op, WASM+mock+native backends | WASM (`eecircuit-engine`) in-browser; two feature-detected native CLI backends — `NativeNgspiceBackend` (rawfile) + `NgspiceCliBackend` (wrdata ASCII, desktop pivot); real-binary run pending |
 | SPICE netlist | `packages/mcp-sim-ngspice` (`spice-netlist.ts`) | **partial** — flat deck ↔ netlist IR, round-trip via escape hatch | pure-TS `.cir`/`.net` parser + serializer |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
 | QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader, no live emulator yet) | qemu-system-xtensa launch stub (ADR-0011); firmware-in-the-loop steps 1 (#64) & 2 (#65 GPIO->PWL) |
@@ -161,6 +161,21 @@
   `op` branch (one synthetic DC-bias sample per probe). The MCP `run_simulation` tool now
   covers transient/ac/dcSweep (issue #84); exposing `op` and wiring the native backend as
   MCP tools is the remaining follow-up.
+- Native ngspice CLI for the desktop backend (issue #118, ADR-0024): `NgspiceCliBackend`
+  (`name: "ngspice-cli"`) is a second feature-detected `SimBackend` for the Electron desktop
+  app's "real ngspice" promise. It differs from `NativeNgspiceBackend` (#30) only in the
+  wire format it reads: it appends a `.control … wrdata … .endc` block and parses the plain
+  ASCII column table via the exported `parseNgspiceOutput(text, probes) → { time, signals }`
+  (both the interleaved `2·P`-column and shared-scale `P+1`-column `wrdata` layouts;
+  malformed/empty output → a structured `NgspiceAdapterError`, never an unhandled throw).
+  Binary path is injectable (`ngspiceBinary`, default `"ngspice"` on PATH) so the per-OS
+  bundling issue (#121/#122) points it at the bundled binary. Absence is structured:
+  `run()` throws an `engine-unavailable` `NgspiceAdapterError` that `runSimulation` maps to
+  `status:"failed"`. Availability + parser are unit-tested with **zero ngspice binary**
+  (fixture `test/fixtures/ngspice-wrdata.txt`); the real spawn path (`defaultCliExecute`,
+  AC decoding) is untested in CI and covered later by the bundling smoke test. The two
+  native backends are expected to converge once the desktop backend settles on one (filed
+  follow-up).
 - Verified 2026-07-02: EECircuitBackend ran a real transient in a browser session (RC low-pass demo, deck `.tran 10us 10ms`, physically-correct DC steady-state waveforms, zero console errors). Gaps: the native ngspice CLI
   backend's real spawn+run path (default `locate`/`execute`) is exercised only with
   injected hooks in tests — a run against a real installed `ngspice` binary is still
