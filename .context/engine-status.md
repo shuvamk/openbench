@@ -30,7 +30,18 @@
   non-breaking: `0.1.0` docs still validate (pre-1.0 patch diffs compatible),
   `education` is exported as the `Education` type, and adapters ignore it (no
   round-trip impact). `keyFormula.display` is display-only text, never evaluated.
-- Known gaps: JSON Schema export pending; no `migrate()` yet (nothing to migrate pre-0.2).
+- **JSON Schema export** (2026-07-06, issue #171): `toJsonSchema()` emits a
+  language-neutral JSON Schema (dialect `JSON_SCHEMA_DIALECT`, draft-2020-12)
+  derived from the Zod IR via `zod-to-json-schema`, so non-TS consumers (MCP
+  agents, CI, third-party tools) validate documents against the same contract.
+  The discriminated `kind` union becomes an `anyOf` over the six kinds; the
+  emitted schema carries the current `IR_VERSION` at top level. Additive, no
+  runtime change to the Zod validators. **Documented lossy:** cross-field
+  refinements (duplicate pin/instance/net ids, template-token checks) are
+  TS-only and NOT expressed in JSON Schema — a doc that passes the JSON Schema
+  is structurally valid (required fields, id-prefix patterns, enums) but the
+  Zod validators remain the strict source of truth.
+- Known gaps: no `migrate()` yet (nothing to migrate pre-0.2).
 
 ## Registry (`packages/registry`)
 
