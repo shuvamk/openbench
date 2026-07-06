@@ -193,8 +193,15 @@ Status of each: [engine-status.md](engine-status.md).
   instance it renders that block with **zero per-part branching** (new parts get a panel for
   free). It is just-in-time and optional — starts collapsed (Astryx `Collapsible`) and
   self-hides when the part has no block or the user opted out via `lib/editor/learn-prefs.ts`
-  (a localStorage-backed on/off store, ADR-0008). The live "try it" knob (`interactiveHint`)
-  is deferred to #81.
+  (a localStorage-backed on/off store, ADR-0008). The live "try it" knob (#81,
+  `components/editor/LiveKnob.tsx` over pure `lib/live/interactive-knob.ts`) mounts beneath the
+  Learn panel: it turns the selected part's `interactiveHint` into one slider that writes a
+  parameter override and re-runs the sim through the **existing** debounced live path
+  (`lib/live/store.ts` `interact`), then watches a derived series from `deriveInstanceStates`
+  (LED brightness/current is the hero). `resolveInteractiveKnob` redirects the knob to a *wired
+  neighbour* when `targetComponentId` is set (the LED's knob lives on its series resistor) —
+  generic, no per-part code. It self-hides without a hint, when the circuit can't simulate (no
+  completed run yields the watched series — composes with #72), or when Learn is opted out.
 
 ### 5. Desktop shell — `apps/desktop`
 - Electron shell that wraps the `apps/web` UI, first slice of the desktop pivot
