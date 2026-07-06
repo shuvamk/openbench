@@ -254,4 +254,43 @@ describe("deriveInstanceStates", () => {
     expect(source.kind).toBe("source");
     expect(source.series.voltage![0]).toBeCloseTo(3.3, 6);
   });
+
+  // Issue #174: cmp_capacitor_generic (template "C{ref}") fell through liveKind()
+  // to "unknown" and emitted no series, so its authored interactiveHint
+  // (observe: "voltage") could never render a knob. A capacitor now derives a
+  // voltage series (across its two pins) and a current series (i = C·dv/dt).
+  it("a capacitor derives a voltage series (and a C·dv/dt current) across its pins", () => {
+    // A rising node voltage on p1 (0V…7V), p2 to ground → dv ramps, dv/dt > 0.
+    const rising = encodeSamples(new Float64Array(N).map((_, i) => i));
+    const schematic = schematicWith(
+      [
+        { instanceId: "C1", componentId: "cmp_capacitor_generic", parameterOverrides: { capacitance: 1e-6 } },
+        { instanceId: "GND1", componentId: "cmp_ground" },
+      ],
+      [
+        { netId: "net_a", connections: [{ instanceId: "C1", pinId: "p1" }] },
+        {
+          netId: "net_g",
+          name: "GND",
+          connections: [
+            { instanceId: "C1", pinId: "p2" },
+            { instanceId: "GND1", pinId: "gnd" },
+          ],
+        },
+      ],
+    );
+    const result = deriveInstanceStates(schematic, getComponent, makeRun([{ netId: "net_a", samples: rising }]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const cap = result.states.get("C1")!;
+    expect(cap.kind).toBe("capacitor");
+    // Voltage across the cap tracks the rising node (p1 − p2 = i − 0).
+    expect(cap.series.voltage).toBeDefined();
+    expect(cap.series.voltage!.length).toBe(N);
+    expect(cap.series.voltage![N - 1]).toBeCloseTo(N - 1, 6);
+    // Current is C·dv/dt: non-zero while the voltage ramps.
+    expect(cap.series.current).toBeDefined();
+    expect(cap.series.current!.length).toBe(N);
+    expect(Math.max(...Array.from(cap.series.current!))).toBeGreaterThan(0);
+  });
 });

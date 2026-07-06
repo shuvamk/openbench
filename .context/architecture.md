@@ -131,10 +131,17 @@ Status of each: [engine-status.md](engine-status.md).
 ### 3.5 Live view — `apps/web/lib/live`
 - `derive.ts`: pure physics derivation — net-voltage waveforms → per-instance visual
   state (Shockley LED brightness, motor rpm fraction, lamp/buzzer intensity, switch
-  state). `store.ts`: playback (scrub/play/speed/loop) + interactions that mutate IR
-  parameter overrides and re-run the simulation debounced. Overlays render inside the
-  canvas world transform; interactive parts (button/switch/pot/LDR) are actuated
-  directly on the canvas in Live mode.
+  state). Passive parts also derive a `voltage` series (and, where a defining param
+  exists, a `current`): resistors via Ohm's law, and **capacitors** (`liveKind
+  "capacitor"`, template `C{ref}`) via `i = C·dv/dt` — issue #174, so the capacitor's
+  authored `interactiveHint` ("watch the voltage settle") actually reads back a series
+  instead of a perpetually-blank knob. `store.ts`: playback (scrub/play/speed/loop) +
+  interactions that mutate IR parameter overrides and re-run the simulation debounced.
+  Overlays render inside the canvas world transform; interactive parts
+  (button/switch/pot/LDR) are actuated directly on the canvas in Live mode.
+  A registry guard (`education-tier2.test.ts`) now asserts **every** authored
+  `interactiveHint.observe` is a series its `liveKind` emits, so this class of
+  dead-knob bug can't recur for any part.
 - Discoverability nudge (issue #73): `derive.ts` exposes `hasLiveVisual(schematic,
   resolveComponent)` (reusing the internal `liveKind` classification, so new visual parts
   opt in automatically). After a *successful* Design-mode run on a circuit that has

@@ -22,6 +22,7 @@ export type LiveKind =
   | "buzzer"
   | "lamp"
   | "resistor"
+  | "capacitor"
   | "source"
   | "switch"
   | "unknown";
@@ -99,6 +100,7 @@ function liveKind(component: Component): LiveKind {
   }
   const template = component.simModel?.template;
   if (template?.startsWith("R{ref}")) return "resistor";
+  if (template?.startsWith("C{ref}")) return "capacitor";
   return "unknown";
 }
 
@@ -309,6 +311,29 @@ export function deriveInstanceStates(
           }
           series.current = current;
           series.power = power;
+        }
+        break;
+      }
+      case "capacitor": {
+        const pinIds = component.pins.map((p) => p.id);
+        const dv = twoPin(pinIds[0]!, pinIds[1]!);
+        if (!dv) {
+          resolvedKind = "unknown";
+          break;
+        }
+        // Voltage across the cap is what its interactiveHint watches (issue #174).
+        series.voltage = dv;
+        // Displacement current i = C·dv/dt (backward difference; first sample
+        // forward-filled). Visual fidelity, not SPICE fidelity — like the others.
+        const capacitance = params.get("capacitance");
+        if (capacitance !== undefined && capacitance > 0) {
+          const current = new Float64Array(time.length);
+          for (let i = 1; i < time.length; i++) {
+            const dt = time[i]! - time[i - 1]!;
+            current[i] = dt > 0 ? (capacitance * (dv[i]! - dv[i - 1]!)) / dt : 0;
+          }
+          if (time.length > 1) current[0] = current[1]!;
+          series.current = current;
         }
         break;
       }
