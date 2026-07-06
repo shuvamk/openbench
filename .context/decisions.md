@@ -656,3 +656,41 @@ criterion: `SimBackend.run` returns `BackendResult`, so — like `NativeNgspiceB
 **Consequences:** Two native ngspice backends coexist. That's deliberate-but-temporary: filed #185 to
 converge them once the Electron desktop backend (#119+) settles on one. The bundling issues (#121/#122)
 inject the bundled binary path into either via its constructor option. No IR/interface change.
+
+## ADR-0029 — Desktop-only pivot: Electron shell + bundled local backend (native engines: ngspice/pio/qemu, NOT kicad-cli) (issue #159, 2026-07-06)
+
+**Status:** Supersedes and renumbers the desktop-pivot ADR drafted on the unmerged
+`desktop-pivot-adr` branch (commit 57f8b4d), which was authored as "ADR-0024" — a number
+already taken on `main` by the co-sim ADR-0024. This is the canonical record of the pivot,
+which is already underway on `main` (the `apps/desktop-backend` skeleton #117, the native
+ngspice CLI backend #118, and the PlatformIO/QEMU wiring #119 have all merged).
+
+**Decision:** OpenBench moves from "browser-based, Vercel-hosted" to a downloadable desktop
+app: an Electron shell wrapping the existing `apps/web` UI, backed by a local Node server
+(`apps/desktop-backend`) that runs the engines natively instead of WASM/mock. The installer
+(`electron-builder`) bundles the engine toolchain **binaries** per-OS (macOS DMG, Windows
+NSIS) so a fresh install works fully offline. The Vercel-hosted browser deploy is retired as
+the primary target; `apps/web` becomes a UI package consumed by the shell.
+
+**Native engines bundled:** `ngspice` (real CLI — `NgspiceCliBackend`/`NativeNgspiceBackend`),
+PlatformIO `pio` (`PioCliBackend`), and `qemu-system-xtensa` (`QemuProcessLauncher`). The
+existing `SimBackend`/`FirmwareBackend` seams already support pluggable backends — the pivot
+adds native ones behind them, it does not replace the seams.
+
+**Explicitly NOT bundled — `kicad-cli` (spike #120):** the draft ADR listed "real `kicad-cli`"
+among the native engines; spike #120 confirmed that is unneeded and it is **dropped from
+scope**. `mcp-kicad`'s only role is the `.kicad_sch` **interchange** (import/export/validate),
+which the pure-TS S-expression parser already does end-to-end with no external process.
+Everything a native `kicad-cli` would provide is already covered without it: schematic
+**rendering** → openbench draws its own SVG canvas; **ERC** → `@openbench/erc`; **symbols** →
+the registry; **PCB layout/gerbers/footprints** → an explicit non-goal (CLAUDE.md). ⇒
+`mcp-kicad` needs **zero** native binary bundling. See `engine-status.md` (KiCad section) for
+the full argument. A future out-of-Phase-1 feature needing KiCad-native rendering/PCB output
+would be a fresh, separately-scoped decision — not this pivot.
+
+**Consequences:** Reverses the "browser-based platform" framing and ADR-0005's "apps/api
+deferred because Vercel deploys one Next app trivially" rationale (a local backend now runs on
+the student's machine). Follow-up Epic (#126) tracks: Electron shell scaffold, per-OS binary
+bundling (#121/#122 — ngspice/pio/qemu only), `electron-builder` packaging + code signing
+(#123/#124), and retiring `deploy-sanity` for an installer smoke-test (#125). Deferred: whether
+to keep a thin hosted "try it in your browser" (WASM/mock) demo. Follows ADR-0028.
