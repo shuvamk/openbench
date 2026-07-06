@@ -581,3 +581,27 @@ deterministic MockBackend and never loads WASM — keeping the suite fast and de
 Registry part count 31 → 32. The NE555 also gets a `U` reference-designator prefix
 (`schematic-ops`) and an `ic` labeled-box symbol kind (`apps/web`), like the other ICs. No IR
 change. Unblocks the canonical astable-blinker demo. Supersedes the NE555 carve-out in ADR-0021.
+
+## ADR-0026 — Live "try it" knob is an Inspector sibling of the Learn panel, gated on a simulatable run (issue #81, 2026-07-06)
+
+**Context:** #81 is the "fun" payoff of epic #76: turn a part's `education.interactiveHint`
+into a live slider. Two placement questions were open. (1) *Where* does the knob render —
+nested inside `LearnPanel`'s `Collapsible` body, or as its own component? (2) *When* is it
+allowed to appear, given the acceptance criterion "no live knob on a broken circuit" (#72)?
+
+**Decision:** Ship the knob as a **standalone self-gating component** (`components/editor/
+LiveKnob.tsx`) mounted in the Inspector immediately after `<LearnPanel/>`, not nested inside
+its collapsible. Rationale: `LearnPanel` early-returns unless `education.summary` exists and
+the panel is expanded; nesting would couple the knob's visibility to unrelated static-content
+and open/closed state. A sibling keeps the knob's own gate crisp — it shows iff (a) the part
+has an `interactiveHint`, (b) the circuit **simulated** (the latest completed run yields the
+watched series via `deriveInstanceStates`; a broken circuit produces none → knob hides,
+composing with #72), and (c) the user hasn't opted out of Learn (`learn-prefs`, shared with
+the panel so one toggle governs the whole Learn experience). All resolution/read-out logic
+lives in pure `lib/live/interactive-knob.ts`; the drag re-uses the **existing** debounced
+`useLiveStore.interact`/`scheduleRerun` path — no parallel sim. The slider range is
+`default/10 … default·10` because IR parameters carry no min/max (a follow-up could add
+authored bounds). Verified-direction: larger series R → smaller LED current, asserted through
+`knobReadout`/`deriveInstanceStates` on solver-representative node voltages (the node suite
+uses MockBackend by ADR-0006, so the R→current *physics* is exercised at the derive layer, not
+end-to-end through WASM).

@@ -12,6 +12,7 @@ import { VStack } from "@astryxdesign/core/Stack";
 import { useEditorStore } from "../../lib/editor/store";
 import { ErcPanel } from "./ErcPanel";
 import { LearnPanel } from "./LearnPanel";
+import { LiveKnob } from "./LiveKnob";
 
 /** Right rail: selected instance details, parameter editing, connected nets. */
 export function Inspector() {
@@ -40,6 +41,9 @@ export function Inspector() {
         <ErcPanel />
         {/* Contextual learning for the selected part; self-hides when absent/off. */}
         <LearnPanel />
+        {/* Live "try it" knob (#81): a slider on the part's interactiveHint that
+            re-runs the sim; self-hides without a hint or a simulatable circuit. */}
+        <LiveKnob />
         {!instance || !component || !schematic ? (
         <VStack gap={2}>
           <Text type="label" color="secondary">
