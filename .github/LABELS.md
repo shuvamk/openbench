@@ -29,6 +29,7 @@ for the autonomous pipeline — see `.context/agent-roles.md`.
 | `area:ai` | AI product surface — `packages/mcp-openbench` agent tools + the in-app copilot |
 | `area:collab-engine` | Multiplayer/CRDT (Phase 2 — should stay empty for now) |
 | `area:agent-ops` | Agent pipeline, skills, hooks, CI |
+| `area:desktop` | Electron shell + `apps/desktop-backend` (ADR-0024 desktop pivot) |
 
 ## Status (the state machine)
 
