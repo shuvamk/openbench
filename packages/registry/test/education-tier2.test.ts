@@ -52,7 +52,10 @@ function liveKindOf(component: Component): string {
     default:
       break;
   }
-  return component.simModel?.template?.startsWith("R{ref}") ? "resistor" : "unknown";
+  const template = component.simModel?.template;
+  if (template?.startsWith("R{ref}")) return "resistor";
+  if (template?.startsWith("C{ref}")) return "capacitor";
+  return "unknown";
 }
 
 /** Derived-series keys each kind emits (mirror of derive.ts's per-kind switch). */
@@ -78,6 +81,13 @@ function emittedSeries(component: Component): Set<string> {
       const names = new Set((component.parameters ?? []).map((p) => p.name));
       const keys = new Set(["voltage"]);
       if (["resistance", "r", "rwinding", "ronoff"].some((n) => names.has(n))) keys.add("current");
+      return keys;
+    }
+    case "capacitor": {
+      // `voltage` always; `current` (C·dv/dt) when a capacitance param exists.
+      const names = new Set((component.parameters ?? []).map((p) => p.name));
+      const keys = new Set(["voltage"]);
+      if (names.has("capacitance")) keys.add("current");
       return keys;
     }
     default:
