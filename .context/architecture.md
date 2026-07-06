@@ -196,6 +196,23 @@ plumbing, turning *"design me an RC low-pass and show me the step response"* int
   parts become keyboard-placeable automatically. Every command routes through the same
   store actions the palette-less UI uses (e.g. add-component → `store.place`), so there is
   no second mutation path.
+- In-app AI copilot (issue #43): a side-panel (`components/editor/CopilotPanel.tsx`,
+  design mode) that turns natural language into **reviewable IR diffs**. Its logic is a
+  pure, UI-free library under `apps/web/lib/copilot/`:
+  - `tools.ts` — `applyToolCall(schematic, call, resolve?)` routes each structured
+    tool-call (today: `add_instance`) through the SAME `@openbench/schematic-ops`
+    mutations as the palette, so an agent action can never drift from a hand edit;
+    `schematicDiff(before, after)` yields the added/removed instances for the diff view.
+  - `explain.ts` — `explainCircuit(schematic, simulationRuns?, resolve?)` is the
+    read-only "why won't this work?" action; it consumes `@openbench/erc` + the latest
+    `simulationRun` and returns a deterministic summary that **cites the machine ERC rule
+    id** (an agent-facing explanation, distinct from the beginner-facing `ErcPanel`, which
+    hides `ERC_*` codes).
+  - `engine.ts` — `createCopilot({apiKey?})` is a **key-optional seam** (mirrors ADR-0003):
+    with no key it runs a deterministic scripted planner ("mock" mode) with ZERO network,
+    so the keyless deploy and the test suite work; a key would swap in a real model client
+    behind the same `Copilot` interface. A proposal is never auto-applied — accepting
+    routes `proposal.after` through `store.applySchematic`, recording exactly one undo entry.
 - Bill of Materials (issue #39): `apps/web/lib/bom.ts` is a pure projection of the
   schematic IR — `buildBom(schematic, resolveComponent?)` groups instances by
   `componentId` + resolved parameters into `{refs, componentId, value, qty, footprint?}`

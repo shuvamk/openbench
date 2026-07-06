@@ -87,7 +87,7 @@ describe("copilot proposal → editor mutation + undo stack", () => {
 
     const copilot = createCopilot();
     copilot.propose(before, "add a resistor");
-    // ...user rejects: we simply never call applyProposal.
+    // ...user rejects: we simply never call applySchematic.
 
     expect(useEditorStore.getState().bundle!.schematic).toBe(before);
     expect(useEditorStore.getState().past.length).toBe(pastBefore);
@@ -101,7 +101,7 @@ describe("copilot proposal → editor mutation + undo stack", () => {
     const copilot = createCopilot();
     const proposal = copilot.propose(before, "add a resistor")!;
 
-    useEditorStore.getState().applyProposal(proposal.after);
+    useEditorStore.getState().applySchematic(proposal.after);
 
     // Applied through the normal mutation stack.
     const applied = useEditorStore.getState().bundle!.schematic;

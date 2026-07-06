@@ -4,6 +4,7 @@ import React, { use, useEffect } from "react";
 import { Text } from "@astryxdesign/core/Text";
 import { CommandPalette } from "../../../components/editor/CommandPalette";
 import { EditorTopBar } from "../../../components/editor/EditorTopBar";
+import { CopilotPanel } from "../../../components/editor/CopilotPanel";
 import { Inspector } from "../../../components/editor/Inspector";
 import { Palette } from "../../../components/editor/Palette";
 import { SchematicCanvas } from "../../../components/editor/SchematicCanvas";
@@ -64,6 +65,7 @@ export default function EditorPage({
           {mode === "design" && <Palette />}
           <SchematicCanvas />
           {mode === "design" && <Inspector />}
+          {mode === "design" && <CopilotPanel />}
           {mode === "design" && <LessonPanel />}
         </div>
       )}
