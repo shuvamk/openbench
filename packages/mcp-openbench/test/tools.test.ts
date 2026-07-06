@@ -197,15 +197,15 @@ describe("connect / set_param / remove_instances", () => {
 });
 
 describe("validate_schematic", () => {
-  it("reports a floating-pin ERC violation on an unconnected part", () => {
+  it("flags an error-severity ERC violation (source, no ground) as invalid", () => {
     let schematic = expectOk(createProjectTool({ name: "t" })).data.schematic;
     schematic = expectOk(
-      addInstanceTool({ schematic, componentId: "cmp_resistor_generic" }),
+      addInstanceTool({ schematic, componentId: "cmp_vsource_pulse" }),
     ).data.schematic;
     const { data } = expectOk(validateSchematicTool({ schematic }));
-    // IR-structurally fine, but ERC catches the un-wired resistor.
+    // IR-structurally fine, but ERC catches "a source but no ground reference".
     expect(data.irErrors).toEqual([]);
-    expect(data.ercViolations.length).toBeGreaterThan(0);
+    expect(data.ercViolations.some((v) => v.rule === "ERC_NO_GROUND")).toBe(true);
     expect(data.valid).toBe(false);
   });
 

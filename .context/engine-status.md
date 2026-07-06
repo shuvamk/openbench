@@ -14,6 +14,7 @@
 | SPICE netlist | `packages/mcp-sim-ngspice` (`spice-netlist.ts`) | **partial** — flat deck ↔ netlist IR, round-trip via escape hatch | pure-TS `.cir`/`.net` parser + serializer |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
 | QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader, no live emulator yet) | qemu-system-xtensa launch stub (ADR-0011); firmware-in-the-loop steps 1 (#64) & 2 (#65 GPIO->PWL) |
+| Agent-control surface | `packages/mcp-openbench` | **wired** — 10 author→derive→inspect tools over the IR | pure orchestration; no engine of its own — delegates to `schematic-ops` / `netlist-compiler` / `erc` / `mcp-sim-ngspice` (MockBackend server-side) |
 
 ## IR core (`packages/ir-schema`)
 
@@ -254,6 +255,43 @@
   points at `dist/`; `files` ships `dist` + `src`; `exports`/`main` stay at `src` for the
   browser dual-env (ADR-0006). A smoke test per package spawns the built bin and asserts it
   lists its tools over stdio via an in-process MCP client.
+
+## Agent-control surface (`packages/mcp-openbench`)
+
+- **Wired** (issue #42, spike #33 / ADR-0019, full finding `agent-control-surface.md`). The
+  product-level MCP server that lets an external agent (Claude Desktop, Cursor) or the in-app
+  copilot design → wire → simulate → read back a circuit through one coherent tool contract.
+  **Not an engine adapter** — it owns no engine and adds no derivation math; every tool is a
+  thin translation of an existing pure function.
+- **Stateless** (ADR-0019 §2): every tool takes the current schematic/netlist/simulationRun IR
+  document in its args and returns the mutated document plus any derived result. No session, no
+  project map, no lease.
+- **Ten tools**, author → derive → inspect:
+  - authoring (→ `@openbench/schematic-ops`): `create_project`, `list_registry`, `add_instance`,
+    `connect` (folds N pin refs onto one net), `set_param`, `remove_instances`.
+  - derivation: `validate_schematic` (`ir-schema` validate ⊕ `erc.checkSchematic`; `valid` is
+    false on any **error**-severity ERC rule, e.g. `ERC_NO_GROUND`), `compile_netlist`
+    (`netlist-compiler`), `run_simulation` (compiles a schematic then runs a **transient** on the
+    deterministic `MockBackend` — a backend failure is a `status:"failed"` run, never a throw).
+  - inspection: `read_waveform` (decodes the run's inline base64 samples into plain `t`/`v`
+    arrays; the independent axis is the last signal).
+- **Never-throw** `{ ok:true, data, warnings? } | { ok:false, errors:[{path,message}] }` on every
+  tool (ADR-0019 §4), identical to `compileNetlist` / `mcp-sim-ngspice`. `add_instance` /
+  `connect` / `set_param` give recovery-oriented errors (unknown componentId lists valid ids;
+  bad pin ref names the component's real pins).
+- **Shared mutation layer**: the authoring ops import from the neutral `@openbench/schematic-ops`
+  package (which `apps/web/lib/editor/mutations.ts` re-exports), so the external MCP server and
+  the in-app copilot run ONE implementation and cannot drift. The tool handlers themselves are
+  exported pure functions (`src/tools.ts`) so the copilot calls the same code, not just the same ops.
+- **Publishable stdio bin** (parity with #31): esbuild `build.mjs` bundles `src/server-cli.ts` →
+  `dist/server-cli.js` (a real `StdioServerTransport` entry), keeping the MCP SDK / zod /
+  eecircuit-engine external. A smoke test spawns the built bin and asserts it lists the ten tools
+  over stdio; a golden-transcript test builds + simulates an RC low-pass end to end.
+- **Boundaries** (ADR-0019 §7): registry-scoped authoring only (arbitrary KiCad-symbol parts are
+  the **Q1** boundary; KiCad designs enter via `mcp-kicad import`). `run_simulation` is analog
+  transient only; firmware-in-the-loop co-sim (ADR-0018) widens its `mode`/`engine` later with no
+  tool-shape change. `get_schematic` is intentionally omitted (stateless — the agent already holds
+  the doc; a session `projectId→doc` cache is deferred, YAGNI).
 
 ## Production-readiness checklist per adapter
 
