@@ -200,7 +200,11 @@ Status of each: [engine-status.md](engine-status.md).
 - Contextual learning — Learn panel (epic #76, issues #78–#80): the component IR carries
   an optional read-only `education` block (`packages/ir-schema`, `educationSchema` — summary,
   gotchas, keyFormula, paramNotes, interactiveHint; adapters ignore it). The three hero parts
-  (LED/resistor/capacitor) carry authored content (#79). `components/editor/LearnPanel.tsx`
+  (LED/resistor/capacitor) carry authored content (#79); the next tier — diode, potentiometer,
+  DC motor, pushbutton — is authored in #170 (each `interactiveHint.observe` names a series its
+  subject's `liveKind` actually emits; the diode's knob, like the LED's, redirects to a series
+  resistor, and the pushbutton is content-only since its `pressed` state isn't a slider param).
+  `components/editor/LearnPanel.tsx`
   is a **generic, data-driven** renderer mounted in the Inspector: for the single selected
   instance it renders that block with **zero per-part branching** (new parts get a panel for
   free). It is just-in-time and optional — starts collapsed (Astryx `Collapsible`) and
