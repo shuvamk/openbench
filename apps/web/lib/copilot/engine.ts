@@ -2,6 +2,7 @@ import type { Component, Schematic, SimulationRun } from "@openbench/ir-schema";
 import { getComponent } from "@openbench/registry";
 import { applyToolCall, schematicDiff, type CopilotToolCall } from "./tools";
 import { explainCircuit, type Explanation } from "./explain";
+import { assemblePartContext, type PartContext } from "./part-context";
 
 /**
  * The copilot engine (issue #43): a key-optional seam over model access,
@@ -32,6 +33,12 @@ export interface CopilotProposal {
   after: Schematic;
 }
 
+/** A read-only "what is this / explain this part" answer, grounded in the IR. */
+export interface PartExplanation extends PartContext {
+  /** Natural-language answer (deterministic in mock mode). */
+  answer: string;
+}
+
 export interface Copilot {
   readonly mode: CopilotMode;
   /**
@@ -41,6 +48,11 @@ export interface Copilot {
   propose(schematic: Schematic, prompt: string): CopilotProposal | null;
   /** Read-only "explain this circuit" over ERC + the latest sim run. */
   explain(schematic: Schematic, simulationRuns?: readonly SimulationRun[]): Explanation;
+  /**
+   * Read-only "explain this part" grounded in the component's IR `education`
+   * block (issue #82). Degrades to general knowledge when the block is absent.
+   */
+  explainPart(component: Component): PartExplanation;
 }
 
 /** Mock mode unless a non-empty API key is configured. */
@@ -118,5 +130,24 @@ export function createCopilot(
     explain(schematic, simulationRuns) {
       return explainCircuit(schematic, simulationRuns, resolveComponent);
     },
+    explainPart(component) {
+      const context = assemblePartContext(component);
+      return { ...context, answer: buildPartAnswer(context) };
+    },
   };
+}
+
+/**
+ * Deterministic mock-mode answer for "explain this part". Grounded answers lead
+ * with the authored summary; ungrounded ones fall back to a general-knowledge
+ * one-liner so the copilot never fabricates an education field it wasn't given.
+ */
+function buildPartAnswer(context: PartContext): string {
+  const summaryLine = context.context
+    .split("\n")
+    .find((line) => line.startsWith("Summary: "));
+  if (context.grounded && summaryLine) {
+    return summaryLine.slice("Summary: ".length);
+  }
+  return `${context.name} is a ${context.category} component.`;
 }
