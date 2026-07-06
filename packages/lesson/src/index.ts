@@ -8,6 +8,7 @@
  * .context/design/teaching-mode.md (ADR-0022).
  */
 export { evaluateStep } from "./evaluate";
+export { validateLesson, type LessonIssue, type LessonValidation } from "./validate";
 export {
   deriveStepsFromRecording,
   loosenConstraints,
