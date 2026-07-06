@@ -185,6 +185,16 @@ Status of each: [engine-status.md](engine-status.md).
   derived steps) so the author can preview the student experience without a share
   round-trip. This makes the teaching author/runner (`packages/lesson`, §2.7) reachable by
   users — previously they were only exercised in tests.
+- Contextual learning — Learn panel (epic #76, issues #78–#80): the component IR carries
+  an optional read-only `education` block (`packages/ir-schema`, `educationSchema` — summary,
+  gotchas, keyFormula, paramNotes, interactiveHint; adapters ignore it). The three hero parts
+  (LED/resistor/capacitor) carry authored content (#79). `components/editor/LearnPanel.tsx`
+  is a **generic, data-driven** renderer mounted in the Inspector: for the single selected
+  instance it renders that block with **zero per-part branching** (new parts get a panel for
+  free). It is just-in-time and optional — starts collapsed (Astryx `Collapsible`) and
+  self-hides when the part has no block or the user opted out via `lib/editor/learn-prefs.ts`
+  (a localStorage-backed on/off store, ADR-0008). The live "try it" knob (`interactiveHint`)
+  is deferred to #81.
 
 ### 5. Desktop shell — `apps/desktop`
 - Electron shell that wraps the `apps/web` UI, first slice of the desktop pivot
