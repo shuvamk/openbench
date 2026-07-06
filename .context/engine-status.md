@@ -13,7 +13,7 @@
 | ngspice | `packages/mcp-sim-ngspice` | **partial** — transient/ac/dcSweep/op, WASM+mock+native backends | WASM (`eecircuit-engine`) in-browser; two feature-detected native CLI backends — `NativeNgspiceBackend` (rawfile) + `NgspiceCliBackend` (wrdata ASCII, desktop pivot); real-binary run pending |
 | SPICE netlist | `packages/mcp-sim-ngspice` (`spice-netlist.ts`) | **partial** — flat deck ↔ netlist IR, round-trip via escape hatch | pure-TS `.cir`/`.net` parser + serializer |
 | PlatformIO | `packages/mcp-firmware-platformio` | **partial** — ini gen, backend seam, mock builds | local `pio` CLI (feature-detected); never runs on Vercel |
-| QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader, no live emulator yet) | qemu-system-xtensa launch stub (ADR-0011); firmware-in-the-loop steps 1 (#64) & 2 (#65 GPIO->PWL) |
+| QEMU (virtual flash) | (inside mcp-firmware) | **stubbed** — machine-config gen + GDB-RSP GPIO poller (codec/reader) + feature-detected process launcher (no live-emulation loop yet) | `QemuProcessLauncher` spawns `qemu-system-xtensa -s` (#119); socket-transport splicing into the poller is the open gap (#187); firmware-in-the-loop steps 1 (#64) & 2 (#65 GPIO->PWL) |
 | Agent-control surface | `packages/mcp-openbench` | **wired** — 10 author→derive→inspect tools over the IR | pure orchestration; no engine of its own — delegates to `schematic-ops` / `netlist-compiler` / `erc` / `mcp-sim-ngspice` (MockBackend server-side) |
 
 ## IR core (`packages/ir-schema`)
@@ -246,6 +246,20 @@
   edge-triggered `(t, gpio, level)` events for *driven* pins only, plus a `pollGpio` run
   loop (injectable clock/sleep). 13 tests. The transport and QEMU-launch (`-s` GDB
   server) are the injectable seams — no real emulator runs in CI yet.
+- QEMU process launch (issue #119, desktop pivot ADR-0024): `QemuProcessLauncher`
+  (`name: "qemu-cli"`) takes a `generateVirtualMachineConfig` output, derives the argv from
+  its launch stub (`qemuArgvFromConfig`), appends `-s` (the GDB stub flag), and `spawn`s
+  `qemu-system-xtensa` as a long-running child — exposing `{ ok, pid, gdbPort, stop() }`.
+  Feature-detected like `PioCliBackend` (absent binary → `{ ok:false, log: "…engine-unavailable…" }`,
+  never a throw); `qemuBinary`, `gdbPort`, `spawn`, and `isAvailable` are injectable so CI never
+  starts a real emulator (`stop()` is idempotent — kills once, safe to call twice). This is only
+  the **process-launch half**: splicing the spawned process's GDB socket into the
+  `RspMemoryReader`/`GpioPoller` transport — the actual live-emulation/observe loop — remains
+  the open gap, filed as its own follow-up (#187).
+- Desktop backend wiring (issue #119): `apps/desktop-backend` exposes `POST /firmware/build` —
+  a firmwareTarget IR body → `generatePlatformioIni` → the injected `FirmwareBackend`
+  (`PioCliBackend` in production, `MockBackend` in tests) → `FirmwareBuildResult`. Bad body → a
+  structured 400, backend failure → 200 `ok:false`; nothing throws to the caller.
 - Firmware-in-the-loop step 2 (issue #65): `gpio-pwl.ts` — `gpioEventsToPwl`, a pure fn
   turning the poller's `(t, gpio, level)` timeline plus an `esp32PinNetMap` (gpio ->
   SPICE node) into PWL 'V' source cards so ngspice sees firmware-driven pins. Each driven

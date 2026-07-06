@@ -24,6 +24,14 @@ export {
 } from "./backend";
 export { generateVirtualMachineConfig, type VirtualMachineConfig } from "./machine";
 export {
+  QemuProcessLauncher,
+  qemuArgvFromConfig,
+  type QemuChildProcess,
+  type QemuLaunchResult,
+  type QemuLauncherOptions,
+  type QemuSpawn,
+} from "./qemu-launcher";
+export {
   RspMemoryReader,
   buildReadMemoryPacket,
   frame,
